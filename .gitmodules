@@ -1,0 +1,3 @@
+[submodule "dependencies/Orochi"]
+	path = dependencies/Orochi
+	url = https://github.com/GPUOpen-LibrariesAndSDKs/Orochi.git
