@@ -1,5 +1,6 @@
 #include <dependencies/Orochi/Orochi/OrochiUtils.h>
 #include <dependencies/Orochi/Orochi/GpuMemory.h>
+#include <ParallelPrimitives/RadixSort.h>
 #include <src/Error.h>
 #include <src/Kernel.h>
 #include <src/Timer.h>
@@ -204,6 +205,8 @@ int main(int argc, char* argv[])
 
 		Oro::GpuMemory<u32> d_mortonCodeKeys(primitiveCount); d_mortonCodeKeys.reset();
 		Oro::GpuMemory<u32> d_mortonCodeValues(primitiveCount); d_mortonCodeValues.reset();
+		Oro::GpuMemory<u32> d_sortedMortonCodeKeys(primitiveCount); d_sortedMortonCodeKeys.reset();
+		Oro::GpuMemory<u32> d_sortedMortonCodeValues(primitiveCount); d_sortedMortonCodeValues.reset();
 		{
 			Kernel calulateMortonCodesKernel;
 
@@ -217,6 +220,26 @@ int main(int argc, char* argv[])
 			calulateMortonCodesKernel.setArgs({ d_triangleBuff.ptr(), d_centroidExtents.ptr() , d_mortonCodeKeys.ptr(), d_mortonCodeValues.ptr()});
 			timer.measure(TimerCodes::CalculateMortonCodes, [&]() { calulateMortonCodesKernel.launch(primitiveCount); });
 		}
+
+		{
+			OrochiUtils oroUtils;
+			Oro::RadixSort sort(orochiDevice, oroUtils);
+
+			Oro::RadixSort::KeyValueSoA srcGpu{};
+			Oro::RadixSort::KeyValueSoA dstGpu{};
+			static constexpr auto startBit{ 0 };
+			static constexpr auto endBit{ 32 };
+			static constexpr auto stream = 0;
+
+			srcGpu.key = d_mortonCodeKeys.ptr();
+			srcGpu.value = d_mortonCodeValues.ptr();
+
+			dstGpu.key = d_sortedMortonCodeKeys.ptr();
+			dstGpu.value = d_sortedMortonCodeValues.ptr();
+
+			sort.sort(srcGpu, dstGpu, static_cast<int>(primitiveCount), startBit, endBit, stream);
+		}
+
 
 		CHECK_ORO(oroCtxDestroy(orochiCtxt));
 	}
