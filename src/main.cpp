@@ -7,15 +7,7 @@
 #include "tiny_obj_loader.h"
 
 using namespace BvhConstruction;
-struct float3
-{
-	float x, y, z;
-};
 
-struct float4
-{
-	float x, y, z, w;
-};
 struct Triangle
 {
 	float3 v1;
