@@ -1,9 +1,9 @@
 #include <src/Error.h>
 #include <iostream>
 
-using namespace GpuOptimizationProject;
+using namespace BvhConstruction;
 
-namespace GpuOptimizationProject
+namespace BvhConstruction
 {
 
 	void checkOro(oroError res, const char* file, int line)

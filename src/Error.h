@@ -1,7 +1,7 @@
 #pragma once
 #include<dependencies/Orochi/Orochi/Orochi.h>
 
-namespace GpuOptimizationProject
+namespace BvhConstruction
 {
 	#define CHECK_ORO( error ) ( checkOro( error, __FILE__, __LINE__ ) )
 	void checkOro( oroError res, const char* file, int line );

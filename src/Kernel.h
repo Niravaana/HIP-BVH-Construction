@@ -1,13 +1,13 @@
 #pragma once
 #include <dependencies/Orochi/Orochi/Orochi.h>
+#include "Common.h"
 #include <vector>
 
-namespace GpuOptimizationProject
+namespace BvhConstruction
 {
 	class Kernel
 	{
-	using u32 = unsigned int;
-	using u8 = unsigned char;
+	
 	public:
 		struct Argument
 		{

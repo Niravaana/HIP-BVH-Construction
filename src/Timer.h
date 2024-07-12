@@ -5,7 +5,7 @@
 #include <functional>
 #include <unordered_map>
 
-namespace GpuOptimizationProject
+namespace BvhConstruction
 {
 
 class Timer final
