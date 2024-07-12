@@ -38,6 +38,7 @@ namespace BvhConstruction
 	using u32 = uint32_t;
 	using u8 = uint8_t;
 
+
 #ifndef __KERNELCC__
 	struct float3
 	{
@@ -215,5 +216,22 @@ namespace BvhConstruction
 		float3 v1;
 		float3 v2;
 		float3 v3;
+	};
+
+	//current size 40 bytes
+	struct LbvhInternalNode
+	{
+		u32 m_parentIdx;
+		u32 m_leftChildIdx;
+		u32 m_rightChildIdx;
+		Aabb m_rAabb;
+		Aabb m_lAabb;
+	};
+
+	struct LbvhLeafNode
+	{
+		u32 m_primIdx;
+		u32 m_shapeIdx;
+		u32 m_parentIdx;
 	};
 }

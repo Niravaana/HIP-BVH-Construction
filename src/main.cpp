@@ -160,8 +160,10 @@ void loadScene(const std::string& filename,	const std::string& mtlBaseDir, std::
 
 enum TimerCodes
 {
-	CalculateCentroidExtents,
-	CalculateMortonCodes
+	CalculateCentroidExtentsTime,
+	CalculateMortonCodesTime,
+	SortingTime,
+	BvhBuildTime
 };
 
 int main(int argc, char* argv[])
@@ -200,7 +202,7 @@ int main(int argc, char* argv[])
 				std::nullopt);
 
 			centroidExtentsKernel.setArgs({d_triangleBuff.ptr(), d_centroidExtents.ptr()});
-			timer.measure(TimerCodes::CalculateCentroidExtents, [&]() { centroidExtentsKernel.launch(primitiveCount); });
+			timer.measure(TimerCodes::CalculateCentroidExtentsTime, [&]() { centroidExtentsKernel.launch(primitiveCount); });
 		}
 
 		Oro::GpuMemory<u32> d_mortonCodeKeys(primitiveCount); d_mortonCodeKeys.reset();
@@ -218,7 +220,7 @@ int main(int argc, char* argv[])
 				std::nullopt);
 
 			calulateMortonCodesKernel.setArgs({ d_triangleBuff.ptr(), d_centroidExtents.ptr() , d_mortonCodeKeys.ptr(), d_mortonCodeValues.ptr()});
-			timer.measure(TimerCodes::CalculateMortonCodes, [&]() { calulateMortonCodesKernel.launch(primitiveCount); });
+			timer.measure(TimerCodes::CalculateMortonCodesTime, [&]() { calulateMortonCodesKernel.launch(primitiveCount); });
 		}
 
 		{
@@ -237,9 +239,44 @@ int main(int argc, char* argv[])
 			dstGpu.key = d_sortedMortonCodeKeys.ptr();
 			dstGpu.value = d_sortedMortonCodeValues.ptr();
 
-			sort.sort(srcGpu, dstGpu, static_cast<int>(primitiveCount), startBit, endBit, stream);
+			timer.measure(SortingTime, [&]() {
+				sort.sort(srcGpu, dstGpu, static_cast<int>(primitiveCount), startBit, endBit, stream); });
 		}
 
+		//We will store primCount internal nodes followed by leaf nodes
+		const u32 nLeafNodes = primitiveCount;
+		const u32 nInternalNodes = nLeafNodes - 1;
+		Oro::GpuMemory<LbvhInternalNode> d_internalNodes(nInternalNodes);
+		Oro::GpuMemory<LbvhLeafNode> d_leafNodes(nLeafNodes);
+		{
+			{
+				Kernel initBvhNodesKernel;
+
+				buildKernelFromSrc(
+					initBvhNodesKernel,
+					orochiDevice,
+					"../src/LbvhKernel.h",
+					"InitBvhNodes",
+					std::nullopt);
+
+				initBvhNodesKernel.setArgs({ d_internalNodes.ptr(), d_leafNodes.ptr(), nLeafNodes});
+				timer.measure(TimerCodes::BvhBuildTime, [&]() { initBvhNodesKernel.launch(nLeafNodes); });
+			}
+
+			{
+				Kernel bvhBuildKernel;
+
+				buildKernelFromSrc(
+					bvhBuildKernel,
+					orochiDevice,
+					"../src/LbvhKernel.h",
+					"bvhBuil",
+					std::nullopt);
+
+				bvhBuildKernel.setArgs({ d_internalNodes.ptr(), d_leafNodes.ptr(), d_sortedMortonCodeKeys.ptr(), nLeafNodes, nInternalNodes });
+				timer.measure(TimerCodes::BvhBuildTime, [&]() { bvhBuildKernel.launch(nInternalNodes); });
+			}
+		}
 
 		CHECK_ORO(oroCtxDestroy(orochiCtxt));
 	}
