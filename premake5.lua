@@ -80,6 +80,7 @@ workspace "BvhConstruction"
 		files {"src/**.h", "src/**.cpp"}
 		files {"dependencies/Orochi/Orochi/**.h", "dependencies/Orochi/Orochi/**.cpp"}
 		files {"dependencies/Orochi/contrib/**.h", "dependencies/Orochi/contrib/**.cpp"}
+		files {"dependencies/Orochi/ParallelPrimitives/**.h", "dependencies/Orochi/ParallelPrimitives/**.cpp"}
 		if os.istarget("windows") then
 			copydir("./dependencies/Orochi/contrib/bin/win64", "./dist/bin/debug/")
 			copydir("./dependencies/Orochi/contrib/bin/win64", "./dist/bin/release/")
