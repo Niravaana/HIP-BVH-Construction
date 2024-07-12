@@ -7,6 +7,6 @@ namespace BvhConstruction
 		Failure
 	};
 
-	using u32 = unsigned int;
-	using u8 = unsigned char;
+	using u32 = uint32_t;
+	using u8 = uint8_t;
 }
