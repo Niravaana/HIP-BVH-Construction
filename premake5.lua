@@ -29,7 +29,7 @@ function copydir(src_dir, dst_dir, filter, single_dst_dir)
     end
 end
 
-workspace "GpuOptimizationProject"
+workspace "BvhConstruction"
     configurations {"Debug", "Release", "RelWithDebInfo", "DebugGpu" }
     language "C++"
     platforms "x64"
@@ -67,7 +67,7 @@ workspace "GpuOptimizationProject"
     targetdir "dist/bin/%{cfg.buildcfg}"    
     location "build/"
     
-    project( "GpuOptimizationProject" )
+    project( "BvhConstruction" )
         cppdialect "C++17"
         kind "ConsoleApp"
     	    
