@@ -198,13 +198,25 @@ int main(int argc, char* argv[])
 				"CalculateCentroidExtents",
 				std::nullopt);
 
-			centroidExtentsKernel.setArgs({});
+			centroidExtentsKernel.setArgs({d_triangleBuff.ptr(), d_centroidExtents.ptr()});
 			timer.measure(TimerCodes::CalculateCentroidExtents, [&]() { centroidExtentsKernel.launch(primitiveCount); });
 		}
 
-		
-		//Calculate centroid AABB 
-		//Calculate morton codes for all triangles 
+		Oro::GpuMemory<u32> d_mortonCodeKeys(primitiveCount); d_mortonCodeKeys.reset();
+		Oro::GpuMemory<u32> d_mortonCodeValues(primitiveCount); d_mortonCodeValues.reset();
+		{
+			Kernel calulateMortonCodesKernel;
+
+			buildKernelFromSrc(
+				calulateMortonCodesKernel,
+				orochiDevice,
+				"../src/LbvhKernel.h",
+				"CalculateMortonCodes",
+				std::nullopt);
+
+			calulateMortonCodesKernel.setArgs({ d_triangleBuff.ptr(), d_centroidExtents.ptr() , d_mortonCodeKeys.ptr(), d_mortonCodeValues.ptr()});
+			timer.measure(TimerCodes::CalculateMortonCodes, [&]() { calulateMortonCodesKernel.launch(primitiveCount); });
+		}
 
 		CHECK_ORO(oroCtxDestroy(orochiCtxt));
 	}
