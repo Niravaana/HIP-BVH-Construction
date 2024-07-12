@@ -2,6 +2,8 @@
 #include <dependencies/Orochi/Orochi/Orochi.h>
 #include "Common.h"
 #include <vector>
+#include <filesystem>
+#include <optional>
 
 namespace BvhConstruction
 {
@@ -44,4 +46,6 @@ namespace BvhConstruction
 		std::vector<u8>	   m_args;
 		std::vector<void*> m_argPtrs;
 	};
+
+	Error buildKernelFromSrc(Kernel& kernel, oroDevice& device, const std::filesystem::path& srcPath, const std::string& functionName, std::optional<std::vector<const char*>> opts);
 }; 

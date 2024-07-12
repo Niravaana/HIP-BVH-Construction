@@ -1,4 +1,5 @@
 #include <dependencies/Orochi/Orochi/OrochiUtils.h>
+#include <dependencies/Orochi/Orochi/GpuMemory.h>
 #include <src/Error.h>
 #include <src/Kernel.h>
 #include <src/Timer.h>
@@ -7,13 +8,6 @@
 #include "tiny_obj_loader.h"
 
 using namespace BvhConstruction;
-
-struct Triangle
-{
-	float3 v1;
-	float3 v2;
-	float3 v3;
-};
 
 void loadScene(const std::string& filename,	const std::string& mtlBaseDir, std::vector<Triangle>& trianglesOut )
 {
@@ -163,6 +157,12 @@ void loadScene(const std::string& filename,	const std::string& mtlBaseDir, std::
 	}
 }
 
+enum TimerCodes
+{
+	CalculateCentroidExtents,
+	CalculateMortonCodes
+};
+
 int main(int argc, char* argv[])
 {
 	try
@@ -182,7 +182,30 @@ int main(int argc, char* argv[])
 		CHECK_ORO(oroGetDeviceProperties(&props, orochiDevice));
 		std::cout << "Executing on '" << props.name << "'" << std::endl;
 
+		const u32 primitiveCount = triangles.size();
+
+		Oro::GpuMemory<Triangle> d_triangleBuff(triangles.size()); d_triangleBuff.reset();
+		OrochiUtils::copyHtoD(d_triangleBuff.ptr(), triangles.data(), triangles.size());
+
+		Oro::GpuMemory<Aabb> d_centroidExtents(1); d_centroidExtents.reset();
+		{
+			Kernel centroidExtentsKernel;
+
+			buildKernelFromSrc(
+				centroidExtentsKernel,
+				orochiDevice,
+				"../src/LbvhKernel.h",
+				"CalculateCentroidExtents",
+				std::nullopt);
+
+			centroidExtentsKernel.setArgs({});
+			timer.measure(TimerCodes::CalculateCentroidExtents, [&]() { centroidExtentsKernel.launch(primitiveCount); });
+		}
+
 		
+		//Calculate centroid AABB 
+		//Calculate morton codes for all triangles 
+
 		CHECK_ORO(oroCtxDestroy(orochiCtxt));
 	}
 	catch (std::exception& e)

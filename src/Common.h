@@ -209,4 +209,11 @@ namespace BvhConstruction
 		float3 m_min;
 		float3 m_max;
 	};
+
+	struct Triangle
+	{
+		float3 v1;
+		float3 v2;
+		float3 v3;
+	};
 }
