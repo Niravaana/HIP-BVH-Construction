@@ -266,8 +266,7 @@ int main(int argc, char* argv[])
 
 		const u32 nLeafNodes = primitiveCount;
 		const u32 nInternalNodes = nLeafNodes - 1;
-		Oro::GpuMemory<LbvhInternalNode> d_internalNodes(nInternalNodes);
-		Oro::GpuMemory<LbvhLeafNode> d_leafNodes(nLeafNodes);
+		Oro::GpuMemory<LbvhNode> d_bvhNodes(nInternalNodes + nLeafNodes);
 		{
 			{
 				Kernel initBvhNodesKernel;
@@ -279,13 +278,12 @@ int main(int argc, char* argv[])
 					"InitBvhNodes",
 					std::nullopt);
 
-				initBvhNodesKernel.setArgs({ d_internalNodes.ptr(), d_leafNodes.ptr(), d_sortedMortonCodeValues.ptr(), nInternalNodes, nLeafNodes});
+				initBvhNodesKernel.setArgs({ d_bvhNodes.ptr(), d_sortedMortonCodeValues.ptr(), nInternalNodes, nLeafNodes});
 				timer.measure(TimerCodes::BvhBuildTime, [&]() { initBvhNodesKernel.launch(nLeafNodes); });
 			}
 
 #if _DEBUG
-			const auto debugInternalNodes = d_internalNodes.getData();
-			const auto debugLeafNodes = d_leafNodes.getData();
+			const auto debugNodes = d_bvhNodes.getData();
 #endif
 
 			{
@@ -295,12 +293,16 @@ int main(int argc, char* argv[])
 					bvhBuildKernel,
 					orochiDevice,
 					"../src/LbvhKernel.h",
-					"bvhBuild",
+					"BvhBuild",
 					std::nullopt);
 
-				bvhBuildKernel.setArgs({ d_internalNodes.ptr(), d_leafNodes.ptr(), d_sortedMortonCodeKeys.ptr(), nLeafNodes, nInternalNodes });
+				bvhBuildKernel.setArgs({ d_bvhNodes.ptr(), d_sortedMortonCodeKeys.ptr(), nLeafNodes, nInternalNodes });
 				timer.measure(TimerCodes::BvhBuildTime, [&]() { bvhBuildKernel.launch(nInternalNodes); });
 			}
+
+#if _DEBUG
+			const auto debugBuiltNodes = d_bvhNodes.getData();
+#endif
 
 			Oro::GpuMemory<u32> d_flags(nInternalNodes); d_flags.reset();
 			{
@@ -313,7 +315,7 @@ int main(int argc, char* argv[])
 					"FitBvhInternalNodes",
 					std::nullopt);
 
-				fitBvhNodesKernel.setArgs({ d_internalNodes.ptr(), d_leafNodes.ptr(), d_flags.ptr(), nLeafNodes, nInternalNodes });
+				fitBvhNodesKernel.setArgs({ d_bvhNodes.ptr(), d_flags.ptr(), nLeafNodes, nInternalNodes });
 				timer.measure(TimerCodes::BvhBuildTime, [&]() { fitBvhNodesKernel.launch(nLeafNodes); });
 			}
 		}

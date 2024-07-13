@@ -37,6 +37,7 @@ namespace BvhConstruction
 
 	using u32 = uint32_t;
 	using u8 = unsigned char;
+	using u64 = unsigned long long;
 
 #ifdef __KERNELCC__
 #if __gfx900__ || __gfx902__ || __gfx904__ || __gfx906__ || __gfx908__ || __gfx909__ || __gfx90a__ || __gfx90c__
@@ -251,23 +252,17 @@ DEVICE INLINE float atomicMaxFloat(float* addr, float value)
 		float3 v3;
 	};
 
-	struct LbvhInternalNode
+	struct LbvhNode
 	{
 		u32 m_parentIdx;
 		u32 m_leftChildIdx;
 		u32 m_rightChildIdx;
 		Aabb m_rAabb;
 		Aabb m_lAabb;
-	};
-
-	//constexpr size_t size = sizeof(LbvhInternalNode);
-	struct LbvhLeafNode
-	{
 		u32 m_primIdx;
-		u32 m_shapeIdx;
-		u32 m_parentIdx;
 	};
 
+	constexpr size_t size = sizeof(LbvhNode);
 	constexpr u32 INVALID_NODE_IDX = 0xFFFFFFFF;
 	constexpr u32 INVALID_PRIM_IDX = 0xFFFFFFFF;
 
