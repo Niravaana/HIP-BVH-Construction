@@ -1,2 +1,3 @@
 # HIP-LBVH-Construction-
-This is reference implementation for research paper [Fast Parallel Construction of High-Quality Bounding Volume Hierarchies](https://research.nvidia.com/sites/default/files/pubs/2013-07_Fast-Parallel-Construction/karras2013hpg_paper.pdf)
+This is reference implementation for research paper [Maximizing Parallelism in the Construction of BVHs,
+Octrees, and k-d Trees](https://research.nvidia.com/sites/default/files/publications/karras2012hpg_paper.pdf)
