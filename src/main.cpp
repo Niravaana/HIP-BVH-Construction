@@ -185,12 +185,19 @@ int main(int argc, char* argv[])
 		CHECK_ORO(oroGetDeviceProperties(&props, orochiDevice));
 		std::cout << "Executing on '" << props.name << "'" << std::endl;
 
-		const u32 primitiveCount = triangles.size();
+		const size_t primitiveCount = triangles.size();
 
-		Oro::GpuMemory<Triangle> d_triangleBuff(triangles.size()); d_triangleBuff.reset();
+		std::vector<Aabb> primitivesAabb(primitiveCount);
+		for(int gIdx = 0; gIdx < primitiveCount; gIdx++)
+		{
+			primitivesAabb[gIdx].grow(triangles[gIdx].v1); primitivesAabb[gIdx].grow(triangles[gIdx].v2); primitivesAabb[gIdx].grow(triangles[gIdx].v3);
+		}
+
+		Oro::GpuMemory<Triangle> d_triangleBuff(primitiveCount); d_triangleBuff.reset();
+		Oro::GpuMemory<Aabb> d_triangleAabb(primitiveCount); d_triangleAabb.reset(); //ToDo we might not need it.
 		OrochiUtils::copyHtoD(d_triangleBuff.ptr(), triangles.data(), triangles.size());
 
-		Oro::GpuMemory<Aabb> d_centroidExtents(1); d_centroidExtents.reset();
+		Oro::GpuMemory<Aabb> d_sceneExtents(1); d_sceneExtents.reset();
 		{
 			Kernel centroidExtentsKernel;
 
@@ -198,12 +205,18 @@ int main(int argc, char* argv[])
 				centroidExtentsKernel,
 				orochiDevice,
 				"../src/LbvhKernel.h",
-				"CalculateCentroidExtents",
+				"CalculateSceneExtents",
 				std::nullopt);
 
-			centroidExtentsKernel.setArgs({d_triangleBuff.ptr(), d_centroidExtents.ptr()});
+			centroidExtentsKernel.setArgs({d_triangleBuff.ptr(), d_triangleAabb.ptr(), d_sceneExtents.ptr(), primitiveCount });
 			timer.measure(TimerCodes::CalculateCentroidExtentsTime, [&]() { centroidExtentsKernel.launch(primitiveCount); });
 		}
+
+#if _DEBUG
+		const auto debugTriangle = d_triangleBuff.getData();
+		const auto debugAabb = d_triangleAabb.getData();
+		const auto debugExtent = d_sceneExtents.getData()[0];
+#endif
 
 		Oro::GpuMemory<u32> d_mortonCodeKeys(primitiveCount); d_mortonCodeKeys.reset();
 		Oro::GpuMemory<u32> d_mortonCodeValues(primitiveCount); d_mortonCodeValues.reset();
@@ -219,7 +232,7 @@ int main(int argc, char* argv[])
 				"CalculateMortonCodes",
 				std::nullopt);
 
-			calulateMortonCodesKernel.setArgs({ d_triangleBuff.ptr(), d_centroidExtents.ptr() , d_mortonCodeKeys.ptr(), d_mortonCodeValues.ptr()});
+			calulateMortonCodesKernel.setArgs({ d_triangleBuff.ptr(), d_sceneExtents.ptr() , d_mortonCodeKeys.ptr(), d_mortonCodeValues.ptr()});
 			timer.measure(TimerCodes::CalculateMortonCodesTime, [&]() { calulateMortonCodesKernel.launch(primitiveCount); });
 		}
 
@@ -243,7 +256,6 @@ int main(int argc, char* argv[])
 				sort.sort(srcGpu, dstGpu, static_cast<int>(primitiveCount), startBit, endBit, stream); });
 		}
 
-		//We will store primCount internal nodes followed by leaf nodes
 		const u32 nLeafNodes = primitiveCount;
 		const u32 nInternalNodes = nLeafNodes - 1;
 		Oro::GpuMemory<LbvhInternalNode> d_internalNodes(nInternalNodes);
@@ -275,6 +287,21 @@ int main(int argc, char* argv[])
 
 				bvhBuildKernel.setArgs({ d_internalNodes.ptr(), d_leafNodes.ptr(), d_sortedMortonCodeKeys.ptr(), nLeafNodes, nInternalNodes });
 				timer.measure(TimerCodes::BvhBuildTime, [&]() { bvhBuildKernel.launch(nInternalNodes); });
+			}
+
+			Oro::GpuMemory<u32> d_flags(nInternalNodes); d_flags.reset();
+			{
+				Kernel fitBvhNodesKernel;
+
+				buildKernelFromSrc(
+					fitBvhNodesKernel,
+					orochiDevice,
+					"../src/LbvhKernel.h",
+					"FitBvhInternalNodes",
+					std::nullopt);
+
+				fitBvhNodesKernel.setArgs({ d_internalNodes.ptr(), d_leafNodes.ptr(), d_flags.ptr(), nLeafNodes, nInternalNodes });
+				timer.measure(TimerCodes::BvhBuildTime, [&]() { fitBvhNodesKernel.launch(nLeafNodes); });
 			}
 		}
 

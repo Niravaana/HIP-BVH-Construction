@@ -36,10 +36,16 @@ namespace BvhConstruction
 	};
 
 	using u32 = uint32_t;
-	using u8 = uint8_t;
+	using u8 = unsigned char;
 
+#ifdef __KERNELCC__
+#if __gfx900__ || __gfx902__ || __gfx904__ || __gfx906__ || __gfx908__ || __gfx909__ || __gfx90a__ || __gfx90c__
+	constexpr int WarpSize = 64;
+#else
+	constexpr int WarpSize = 32;
+#endif
+#endif
 
-#ifndef __KERNELCC__
 	struct float3
 	{
 		float x, y, z;
@@ -138,7 +144,26 @@ namespace BvhConstruction
 	{
 		return float3{ a.x - b.x, a.y - b.y, a.z - b.z };
 	}
-#endif 
+
+#if defined( __KERNELCC__ )
+DEVICE INLINE float atomicMinFloat(float* addr, float value)
+{
+	float old;
+	old = (__float_as_int(value) >= 0)
+		? __int_as_float(atomicMin(reinterpret_cast<int*>(addr), __float_as_int(value)))
+		: __uint_as_float(atomicMax(reinterpret_cast<unsigned int*>(addr), __float_as_uint(value)));
+	return old;
+}
+
+DEVICE INLINE float atomicMaxFloat(float* addr, float value)
+{
+	float old;
+	old = (__float_as_int(value) >= 0)
+		? __int_as_float(atomicMax(reinterpret_cast<int*>(addr), __float_as_int(value)))
+		: __uint_as_float(atomicMin(reinterpret_cast<unsigned int*>(addr), __float_as_uint(value)));
+	return old;
+}
+#endif
 
 	class Aabb
 	{
@@ -159,8 +184,8 @@ namespace BvhConstruction
 
 		HOST_DEVICE void reset(void)
 		{
-			m_min = float3{ FltMax };
-			m_max = float3{ -FltMax };
+			m_min = float3{ FltMax, FltMax, FltMax };
+			m_max = float3{ -FltMax, -FltMax, -FltMax };
 		}
 
 		HOST_DEVICE Aabb& grow(const Aabb& rhs)
@@ -194,17 +219,18 @@ namespace BvhConstruction
 			m_min = max(m_min, box.m_min);
 			m_max = min(m_max, box.m_max);
 		}
-
-		HOST_DEVICE float2 intersect(const float3& invD, const float3& oxInvD, float maxT) const
+		
+#if defined( __KERNELCC__ )
+		DEVICE void atomicGrow(const Aabb& aabb)
 		{
-			float3 f = fma(m_max, invD, oxInvD);
-			float3 n = fma(m_min, invD, oxInvD);
-			float3 tmax = max(f, n);
-			float3 tmin = min(f, n);
-			float  t1 = fminf(fminf(fminf(tmax.x, tmax.y), tmax.z), maxT);
-			float  t0 = fmaxf(fmaxf(fmaxf(tmin.x, tmin.y), tmin.z), 0.0f);
-			return float2{ t0, t1 };
+			atomicMinFloat(&m_min.x, aabb.m_min.x);
+			atomicMinFloat(&m_min.y, aabb.m_min.y);
+			atomicMinFloat(&m_min.z, aabb.m_min.z);
+			atomicMaxFloat(&m_max.x, aabb.m_max.x);
+			atomicMaxFloat(&m_max.y, aabb.m_max.y);
+			atomicMaxFloat(&m_max.z, aabb.m_max.z);
 		}
+#endif
 
 	public:
 		float3 m_min;
@@ -218,7 +244,6 @@ namespace BvhConstruction
 		float3 v3;
 	};
 
-	//current size 40 bytes
 	struct LbvhInternalNode
 	{
 		u32 m_parentIdx;
@@ -228,6 +253,7 @@ namespace BvhConstruction
 		Aabb m_lAabb;
 	};
 
+	//constexpr size_t size = sizeof(LbvhInternalNode);
 	struct LbvhLeafNode
 	{
 		u32 m_primIdx;
