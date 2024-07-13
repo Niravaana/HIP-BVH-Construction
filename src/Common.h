@@ -267,4 +267,8 @@ DEVICE INLINE float atomicMaxFloat(float* addr, float value)
 		u32 m_shapeIdx;
 		u32 m_parentIdx;
 	};
+
+	constexpr u32 INVALID_NODE_IDX = 0xFFFFFFFF;
+	constexpr u32 INVALID_PRIM_IDX = 0xFFFFFFFF;
+
 }

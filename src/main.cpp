@@ -279,9 +279,14 @@ int main(int argc, char* argv[])
 					"InitBvhNodes",
 					std::nullopt);
 
-				initBvhNodesKernel.setArgs({ d_internalNodes.ptr(), d_leafNodes.ptr(), nLeafNodes});
+				initBvhNodesKernel.setArgs({ d_internalNodes.ptr(), d_leafNodes.ptr(), d_sortedMortonCodeValues.ptr(), nInternalNodes, nLeafNodes});
 				timer.measure(TimerCodes::BvhBuildTime, [&]() { initBvhNodesKernel.launch(nLeafNodes); });
 			}
+
+#if _DEBUG
+			const auto debugInternalNodes = d_internalNodes.getData();
+			const auto debugLeafNodes = d_leafNodes.getData();
+#endif
 
 			{
 				Kernel bvhBuildKernel;
@@ -290,7 +295,7 @@ int main(int argc, char* argv[])
 					bvhBuildKernel,
 					orochiDevice,
 					"../src/LbvhKernel.h",
-					"bvhBuil",
+					"bvhBuild",
 					std::nullopt);
 
 				bvhBuildKernel.setArgs({ d_internalNodes.ptr(), d_leafNodes.ptr(), d_sortedMortonCodeKeys.ptr(), nLeafNodes, nInternalNodes });

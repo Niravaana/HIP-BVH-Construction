@@ -112,3 +112,33 @@ extern "C" __global__ void CalculateMortonCodes(const Aabb* __restrict__ bounds,
 	mortonCodesOut[gIdx] = xx * 4 + yy * 2 + zz;
 	primIdxOut[gIdx] = gIdx;
 }
+
+extern "C" __global__ void InitBvhNodes(
+	LbvhInternalNode* __restrict__ internalNodes, 
+	LbvhLeafNode* __restrict__  leafNodes,
+	const u32* __restrict__ primIdx, 
+	const u32 nInternalNodes, 
+	const u32 nLeafNodes)
+{
+	unsigned int gIdx = threadIdx.x + blockIdx.x * blockDim.x;
+	
+	if (gIdx < nLeafNodes)
+	{
+		const u32 nodeIdx = gIdx;
+		u32 idx = primIdx[nodeIdx];
+		LbvhLeafNode& node = leafNodes[nodeIdx];
+		node.m_primIdx = idx;
+		node.m_shapeIdx = INVALID_NODE_IDX;
+		node.m_parentIdx = INVALID_NODE_IDX;
+	}
+
+	if (gIdx < nInternalNodes) 
+	{
+		LbvhInternalNode& node = internalNodes[gIdx];
+		node.m_rAabb.reset();
+		node.m_lAabb.reset();
+		node.m_leftChildIdx = INVALID_NODE_IDX;
+		node.m_rightChildIdx = INVALID_NODE_IDX;
+		node.m_parentIdx = INVALID_NODE_IDX;
+	}
+}
