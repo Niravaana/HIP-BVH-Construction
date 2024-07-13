@@ -232,13 +232,16 @@ int main(int argc, char* argv[])
 				"CalculateMortonCodes",
 				std::nullopt);
 
-			calulateMortonCodesKernel.setArgs({ d_triangleBuff.ptr(), d_sceneExtents.ptr() , d_mortonCodeKeys.ptr(), d_mortonCodeValues.ptr()});
+			calulateMortonCodesKernel.setArgs({ d_triangleAabb.ptr(), d_sceneExtents.ptr() , d_mortonCodeKeys.ptr(), d_mortonCodeValues.ptr(), primitiveCount});
 			timer.measure(TimerCodes::CalculateMortonCodesTime, [&]() { calulateMortonCodesKernel.launch(primitiveCount); });
 		}
 
+#if _DEBUG
+		const auto debugMortonCodes = d_mortonCodeKeys.getData();
+#endif
 		{
 			OrochiUtils oroUtils;
-			Oro::RadixSort sort(orochiDevice, oroUtils);
+			Oro::RadixSort sort(orochiDevice, oroUtils, 0, "../dependencies/Orochi/ParallelPrimitives/RadixSortKernels.h", "../dependencies/Orochi");
 
 			Oro::RadixSort::KeyValueSoA srcGpu{};
 			Oro::RadixSort::KeyValueSoA dstGpu{};
@@ -255,6 +258,11 @@ int main(int argc, char* argv[])
 			timer.measure(SortingTime, [&]() {
 				sort.sort(srcGpu, dstGpu, static_cast<int>(primitiveCount), startBit, endBit, stream); });
 		}
+
+#if _DEBUG
+		const auto debugSortedMortonCodes = d_sortedMortonCodeKeys.getData();
+		const auto debugSortedMortonCodesVal = d_sortedMortonCodeValues.getData();
+#endif
 
 		const u32 nLeafNodes = primitiveCount;
 		const u32 nInternalNodes = nLeafNodes - 1;

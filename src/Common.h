@@ -46,6 +46,7 @@ namespace BvhConstruction
 #endif
 #endif
 
+#ifndef __KERNELCC__
 	struct float3
 	{
 		float x, y, z;
@@ -60,6 +61,7 @@ namespace BvhConstruction
 	{
 		float x, y;
 	};
+#endif
 
 	HOST_DEVICE INLINE float3 max(const float3& a, const float3& b)
 	{
@@ -120,6 +122,11 @@ namespace BvhConstruction
 	HOST_DEVICE INLINE float3 operator+(const float3& a, const float3& b)
 	{
 		return float3{ a.x + b.x, a.y + b.y, a.z + b.z };
+	}
+
+	HOST_DEVICE INLINE float3 operator/(const float3& a, const float3& b)
+	{
+		return float3{ a.x / b.x, a.y / b.y, a.z / b.z };
 	}
 
 	HOST_DEVICE INLINE float3& operator*=(float3& a, const float c)
