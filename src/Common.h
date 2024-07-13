@@ -153,6 +153,7 @@ namespace BvhConstruction
 		return float3{ a.x - b.x, a.y - b.y, a.z - b.z };
 	}
 
+
 #if defined( __KERNELCC__ )
 DEVICE INLINE float atomicMinFloat(float* addr, float value)
 {
@@ -257,10 +258,14 @@ DEVICE INLINE float atomicMaxFloat(float* addr, float value)
 		u32 m_parentIdx;
 		u32 m_leftChildIdx;
 		u32 m_rightChildIdx;
-		Aabb m_rAabb;
-		Aabb m_lAabb;
+		Aabb m_aabb;
 		u32 m_primIdx;
 	};
+
+	HOST_DEVICE INLINE Aabb merge(const Aabb lhs, const Aabb rhs)
+	{
+		return  { min(lhs.m_min, rhs.m_min), max(lhs.m_max, rhs.m_max) };
+	}
 
 	constexpr size_t size = sizeof(LbvhNode);
 	constexpr u32 INVALID_NODE_IDX = 0xFFFFFFFF;

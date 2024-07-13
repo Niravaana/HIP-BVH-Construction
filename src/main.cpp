@@ -278,7 +278,7 @@ int main(int argc, char* argv[])
 					"InitBvhNodes",
 					std::nullopt);
 
-				initBvhNodesKernel.setArgs({ d_bvhNodes.ptr(), d_sortedMortonCodeValues.ptr(), nInternalNodes, nLeafNodes});
+				initBvhNodesKernel.setArgs({ d_triangleBuff.ptr(), d_bvhNodes.ptr(), d_sortedMortonCodeValues.ptr(), nInternalNodes, nLeafNodes});
 				timer.measure(TimerCodes::BvhBuildTime, [&]() { initBvhNodesKernel.launch(nLeafNodes); });
 			}
 
@@ -312,13 +312,17 @@ int main(int argc, char* argv[])
 					fitBvhNodesKernel,
 					orochiDevice,
 					"../src/LbvhKernel.h",
-					"FitBvhInternalNodes",
+					"FitBvhNodes",
 					std::nullopt);
 
 				fitBvhNodesKernel.setArgs({ d_bvhNodes.ptr(), d_flags.ptr(), nLeafNodes, nInternalNodes });
 				timer.measure(TimerCodes::BvhBuildTime, [&]() { fitBvhNodesKernel.launch(nLeafNodes); });
 			}
 		}
+
+#if _DEBUG
+		const auto debugFittedNodes = d_bvhNodes.getData();
+#endif
 
 		CHECK_ORO(oroCtxDestroy(orochiCtxt));
 	}

@@ -114,6 +114,7 @@ extern "C" __global__ void CalculateMortonCodes(const Aabb* __restrict__ bounds,
 }
 
 extern "C" __global__ void InitBvhNodes(
+	const Triangle* __restrict__ primitives,
 	LbvhNode* __restrict__ bvhNodes, 
 	const u32* __restrict__ primIdx, 
 	const u32 nInternalNodes, 
@@ -124,8 +125,10 @@ extern "C" __global__ void InitBvhNodes(
 	if (gIdx < nLeafNodes)
 	{
 		const u32 nodeIdx = gIdx + nInternalNodes;
-		u32 idx = primIdx[nodeIdx];
+		u32 idx = primIdx[gIdx];
 		LbvhNode& node = bvhNodes[nodeIdx];
+		node.m_aabb.reset();
+		node.m_aabb.grow(primitives[idx].v1); node.m_aabb.grow(primitives[idx].v2); node.m_aabb.grow(primitives[idx].v3);
 		node.m_primIdx = idx;
 		node.m_leftChildIdx = INVALID_NODE_IDX;
 		node.m_rightChildIdx = INVALID_NODE_IDX;
@@ -134,8 +137,7 @@ extern "C" __global__ void InitBvhNodes(
 	if (gIdx < nInternalNodes) 
 	{
 		LbvhNode& node = bvhNodes[gIdx];
-		node.m_rAabb.reset();
-		node.m_lAabb.reset();
+		node.m_aabb.reset();
 		node.m_leftChildIdx = INVALID_NODE_IDX;
 		node.m_rightChildIdx = INVALID_NODE_IDX;
 		node.m_parentIdx = INVALID_NODE_IDX;
@@ -271,4 +273,28 @@ extern "C" __global__ void BvhBuild(
 	bvhNodes[gIdx].m_primIdx = INVALID_PRIM_IDX;
 	bvhNodes[leftChildIdx].m_parentIdx = gIdx;
 	bvhNodes[rightChildIdx].m_parentIdx = gIdx;
+}
+
+extern "C" __global__ void FitBvhNodes(LbvhNode* __restrict__ bvhNodes, u32* flags, u32 nLeafNodes,u32 nInternalNodes)
+{
+	const unsigned int gIdx = threadIdx.x + blockIdx.x * blockDim.x;
+	if (gIdx >= nLeafNodes) return;
+
+	int idx = nInternalNodes + gIdx;
+	u32 parent = bvhNodes[idx].m_parentIdx;
+
+	while (parent != INVALID_NODE_IDX)
+	{
+		if (atomicCAS(&flags[parent], 0, 1) == 0)
+			break;
+
+		__threadfence();
+		{
+			u32 leftChildIdx = bvhNodes[parent].m_leftChildIdx;
+			u32 rightChildIdx = bvhNodes[parent].m_rightChildIdx;
+			bvhNodes[parent].m_aabb = merge(bvhNodes[leftChildIdx].m_aabb, bvhNodes[rightChildIdx].m_aabb);
+			parent = bvhNodes[parent].m_parentIdx;
+		}
+		__threadfence();
+	}
 }
