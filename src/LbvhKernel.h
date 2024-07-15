@@ -335,8 +335,8 @@ extern "C" __global__ void GenerateRays(const Camera* __restrict__ cam, Ray* __r
 	const int gIdx = blockIdx.x * blockDim.x + threadIdx.x;
 	const int gIdy = blockIdx.y * blockDim.y + threadIdx.y;
 
-	/*if (gIdx >= width) return;
-	if (gIdy >= height) return;*/
+	//if (gIdx >= width) return;
+	//if (gIdy >= height) return;
 
 	bool isMultiSamples = false;
 	float  fov = cam->m_fov;
