@@ -166,6 +166,74 @@ enum TimerCodes
 	BvhBuildTime
 };
 
+HOST_DEVICE INLINE uint32_t lcg(uint32_t& seed)
+{
+	const uint32_t LCG_A = 1103515245u;
+	const uint32_t LCG_C = 12345u;
+	const uint32_t LCG_M = 0x00FFFFFFu;
+	seed = (LCG_A * seed + LCG_C);
+	return seed & LCG_M;
+}
+
+HOST_DEVICE INLINE float randf(uint32_t& seed)
+{
+	return (static_cast<float>(lcg(seed)) / static_cast<float>(0x01000000));
+}
+
+template <uint32_t N>
+HOST_DEVICE INLINE uint2 tea(uint32_t val0, uint32_t val1)
+{
+	uint32_t v0 = val0;
+	uint32_t v1 = val1;
+	uint32_t s0 = 0;
+
+	for (uint32_t n = 0; n < N; n++)
+	{
+		s0 += 0x9e3779b9;
+		v0 += ((v1 << 4) + 0xa341316c) ^ (v1 + s0) ^ ((v1 >> 5) + 0xc8013ea4);
+		v1 += ((v0 << 4) + 0xad90777d) ^ (v0 + s0) ^ ((v0 >> 5) + 0x7e95761e);
+	}
+
+	return { v0, v1 };
+}
+
+void GenerateRays(const Camera* cam, Ray* raysBuffOut, const u32 width, const u32 height)
+{
+
+	for (int gIdx = 0; gIdx < width; gIdx++)
+	{
+
+		for (int gIdy = 0; gIdy < height; gIdy++)
+		{
+			//if (gIdx >= width) return;
+			//if (gIdy >= height) return;
+
+			bool isMultiSamples = false;
+			float  fov = cam->m_fov;
+			float2 sensorSize;
+			unsigned int seed = tea<16>(gIdx + gIdy * width, 0).x;
+
+			sensorSize.x = 0.024f * (width / static_cast<float>(height));
+			sensorSize.y = 0.024f;
+			float		 offset = (isMultiSamples) ? randf(seed) : 0.5f;
+			const float2 xy = float2{ ((float)gIdx + offset) / width, ((float)gIdy + offset) / height } - float2{ 0.5f, 0.5f };
+			float3		 dir = float3{ xy.x * sensorSize.x, xy.y * sensorSize.y, sensorSize.y / (2.f * tan(fov / 2.f)) };
+
+			const float3 holDir = qtRotate(cam->m_quat, float3{ 1.0f, 0.0f, 0.0f });
+			const float3 upDir = qtRotate(cam->m_quat, float3{ 0.0f, -1.0f, 0.0f });
+			const float3 viewDir = qtRotate(cam->m_quat, float3{ 0.0f, 0.0f, -1.0f });
+			dir = normalize(dir.x * holDir + dir.y * upDir + dir.z * viewDir);
+
+			{
+				Ray& r = raysBuffOut[gIdx * height + gIdy];
+				r.m_origin = float3{ cam->m_eye.x, cam->m_eye.y, cam->m_eye.z };
+				float4 direction = cam->m_eye + float4{ dir.x * cam->m_far, dir.y * cam->m_far, dir.z * cam->m_far, 0.0f };
+				r.m_direction = normalize(float3{ direction.x, direction.y, direction.z });
+			}
+		}
+	}
+}
+
 int main(int argc, char* argv[])
 {
 	try
@@ -176,6 +244,8 @@ int main(int argc, char* argv[])
 		
 		std::vector<Triangle> triangles;
 		loadScene("../src/meshes/cornellbox/cornellbox.obj", "../src/meshes/cornellbox/", triangles);
+		
+
 
 		CHECK_ORO((oroError)oroInitialize((oroApi)(ORO_API_HIP), 0));
 		CHECK_ORO(oroInit(0));
@@ -186,13 +256,6 @@ int main(int argc, char* argv[])
 		std::cout << "Executing on '" << props.name << "'" << std::endl;
 
 		const size_t primitiveCount = triangles.size();
-
-		std::vector<Aabb> primitivesAabb(primitiveCount);
-		for(int gIdx = 0; gIdx < primitiveCount; gIdx++)
-		{
-			primitivesAabb[gIdx].grow(triangles[gIdx].v1); primitivesAabb[gIdx].grow(triangles[gIdx].v2); primitivesAabb[gIdx].grow(triangles[gIdx].v3);
-		}
-
 		Oro::GpuMemory<Triangle> d_triangleBuff(primitiveCount); d_triangleBuff.reset();
 		Oro::GpuMemory<Aabb> d_triangleAabb(primitiveCount); d_triangleAabb.reset(); //ToDo we might not need it.
 		OrochiUtils::copyHtoD(d_triangleBuff.ptr(), triangles.data(), triangles.size());
@@ -322,6 +385,53 @@ int main(int argc, char* argv[])
 
 #if _DEBUG
 		const auto debugFittedNodes = d_bvhNodes.getData();
+#endif
+
+		//set transformation for the scene (fixed currently for cornell box)
+		Transformation t;
+		t.m_translation = float3{ 0.0f, 0.0f, -3.0f };
+		t.m_scale = float3{ 1.0f, 1.0f, 1.0f };
+		Oro::GpuMemory<Transformation> d_transformations(1); d_transformations.reset();
+		OrochiUtils::copyHtoD(d_transformations.ptr(), &t, 1);
+
+		//create camera 
+		Camera cam;
+		cam.m_eye = float4{ 0.0f, 2.5f, 5.8f, 0.0f };
+		cam.m_quat = qtRotation(float4{ 0.0f, 0.0f, 1.0f, 0.0f });
+		cam.m_fov = 45.0f *  Pi / 180.f;
+		cam.m_near = 0.0f;
+		cam.m_far = 100000.0f;
+		Oro::GpuMemory<Camera> d_cam(1); d_cam.reset();
+		OrochiUtils::copyHtoD(d_cam.ptr(), &cam, 1);
+
+		constexpr u32 width = 1280;
+		constexpr u32 height = 720;
+		Oro::GpuMemory<Ray> d_rayBuffer(width* height); d_rayBuffer.reset();
+
+		/*std::vector<Ray> h_ray(width* height);
+		GenerateRays(&cam, h_ray.data(), width, height);*/
+
+		//generate rays
+		{
+			const u32 blockSizeX = 64;
+			const u32 blockSizeY = 64;
+			const u32 gridSizeX = (width + blockSizeX - 1) / blockSizeX;
+			const u32 gridSizeY = (height + blockSizeY - 1) / blockSizeY;
+			Kernel generateRaysKernel;
+
+			buildKernelFromSrc(
+				generateRaysKernel,
+				orochiDevice,
+				"../src/LbvhKernel.h",
+				"GenerateRays",
+				std::nullopt);
+
+			generateRaysKernel.setArgs({ d_cam.ptr(), d_rayBuffer.ptr(), width, height});
+			timer.measure(TimerCodes::BvhBuildTime, [&]() { generateRaysKernel.launch(gridSizeX, gridSizeY, 1, blockSizeX, blockSizeY, 1); });
+		}
+
+#if _DEBUG
+		const auto debugRayBuff = d_rayBuffer.getData();
 #endif
 
 		CHECK_ORO(oroCtxDestroy(orochiCtxt));

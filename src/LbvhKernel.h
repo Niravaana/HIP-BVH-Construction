@@ -298,3 +298,66 @@ extern "C" __global__ void FitBvhNodes(LbvhNode* __restrict__ bvhNodes, u32* fla
 		__threadfence();
 	}
 }
+
+HOST_DEVICE INLINE uint32_t lcg(uint32_t& seed)
+{
+	const uint32_t LCG_A = 1103515245u;
+	const uint32_t LCG_C = 12345u;
+	const uint32_t LCG_M = 0x00FFFFFFu;
+	seed = (LCG_A * seed + LCG_C);
+	return seed & LCG_M;
+}
+
+HOST_DEVICE INLINE float randf(uint32_t& seed)
+{
+	return (static_cast<float>(lcg(seed)) / static_cast<float>(0x01000000));
+}
+
+template <uint32_t N>
+HOST_DEVICE INLINE uint2 tea(uint32_t val0, uint32_t val1)
+{
+	uint32_t v0 = val0;
+	uint32_t v1 = val1;
+	uint32_t s0 = 0;
+
+	for (uint32_t n = 0; n < N; n++)
+	{
+		s0 += 0x9e3779b9;
+		v0 += ((v1 << 4) + 0xa341316c) ^ (v1 + s0) ^ ((v1 >> 5) + 0xc8013ea4);
+		v1 += ((v0 << 4) + 0xad90777d) ^ (v0 + s0) ^ ((v0 >> 5) + 0x7e95761e);
+	}
+
+	return { v0, v1 };
+}
+
+extern "C" __global__ void GenerateRays(const Camera* __restrict__ cam, Ray* __restrict__ raysBuffOut, const u32 width, const u32 height)
+{
+	const int gIdx = blockIdx.x * blockDim.x + threadIdx.x;
+	const int gIdy = blockIdx.y * blockDim.y + threadIdx.y;
+
+	/*if (gIdx >= width) return;
+	if (gIdy >= height) return;*/
+
+	bool isMultiSamples = false;
+	float  fov = cam->m_fov;
+	float2 sensorSize;
+	unsigned int seed = tea<16>(gIdx + gIdy * width, 0).x;
+
+	sensorSize.x = 0.024f * (width / static_cast<float>(height));
+	sensorSize.y = 0.024f;
+	float		 offset = (isMultiSamples) ? randf(seed) : 0.5f;
+	const float2 xy = float2{ ((float)gIdx + offset) / width, ((float)gIdy + offset) / height } - float2{ 0.5f, 0.5f };
+	float3		 dir = float3{ xy.x * sensorSize.x, xy.y * sensorSize.y, sensorSize.y / (2.f * tan(fov / 2.f)) };
+
+	const float3 holDir = qtRotate(cam->m_quat, float3{ 1.0f, 0.0f, 0.0f });
+	const float3 upDir = qtRotate(cam->m_quat, float3{ 0.0f, -1.0f, 0.0f });
+	const float3 viewDir = qtRotate(cam->m_quat, float3{ 0.0f, 0.0f, -1.0f });
+	dir = normalize(dir.x * holDir + dir.y * upDir + dir.z * viewDir);
+
+	{
+		raysBuffOut[gIdx * height + gIdy].m_origin = float3{ cam->m_eye.x, cam->m_eye.y, cam->m_eye.z };
+		float4 direction = cam->m_eye + float4{ dir.x * cam->m_far, dir.y * cam->m_far, dir.z * cam->m_far, 0.0f };
+		raysBuffOut[gIdx * height + gIdy].m_direction = normalize(float3{ direction.x, direction.y, direction.z });
+	}
+}
+

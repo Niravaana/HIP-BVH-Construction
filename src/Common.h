@@ -28,6 +28,7 @@ namespace BvhConstruction
 	constexpr float FltMax = 3.402823466e+38f;
 	constexpr int	IntMin = -2147483647 - 1;
 	constexpr int	IntMax = 2147483647;
+	constexpr float Pi = 3.14159265358979323846f;
 
 	enum Error
 	{
@@ -61,6 +62,11 @@ namespace BvhConstruction
 	struct float2
 	{
 		float x, y;
+	};
+
+	struct uint2
+	{
+		u32 x, y;
 	};
 #endif
 
@@ -125,9 +131,49 @@ namespace BvhConstruction
 		return float3{ a.x + b.x, a.y + b.y, a.z + b.z };
 	}
 
+	HOST_DEVICE INLINE float4 operator+(const float4& a, const float4& b)
+	{
+		return float4{ a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w };
+	}
+
+	HOST_DEVICE INLINE float3 operator-(const float3& a, const float3& b)
+	{
+		return float3{ a.x - b.x, a.y - b.y, a.z - b.z };
+	}
+
+	HOST_DEVICE INLINE float4 operator-(const float4& a, const float4& b)
+	{
+		return float4{ a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w };
+	}
+
+	HOST_DEVICE INLINE float2 operator-(const float2& a, const float2& b)
+	{
+		return float2{ a.x - b.x, a.y - b.y};
+	}
+
+	HOST_DEVICE INLINE float3 operator-(const float3& a)
+	{
+		return float3{ -a.x, -a.y, -a.z };
+	}
+
+	HOST_DEVICE INLINE float4 operator-(const float4& a)
+	{
+		return float4{ -a.x, -a.y, -a.z, -a.w };
+	}
+
 	HOST_DEVICE INLINE float3 operator/(const float3& a, const float3& b)
 	{
 		return float3{ a.x / b.x, a.y / b.y, a.z / b.z };
+	}
+
+	HOST_DEVICE INLINE float3 operator/(const float3& a, const float& b)
+	{
+		return float3{ a.x / b, a.y / b, a.z / b };
+	}
+
+	HOST_DEVICE INLINE float4 operator/(const float4& a, const float& b)
+	{
+		return float4{ a.x / b, a.y / b, a.z / b, a.w / b };
 	}
 
 	HOST_DEVICE INLINE float3& operator*=(float3& a, const float c)
@@ -148,9 +194,13 @@ namespace BvhConstruction
 		return float3{ c * a.x, c * a.y, c * a.z };
 	}
 
-	HOST_DEVICE INLINE float3 operator-(const float3& a, const float3& b)
+	HOST_DEVICE INLINE float dot(const float3& a, const float3& b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+
+	HOST_DEVICE INLINE float3 normalize(const float3& a) { return a / sqrtf(dot(a, a)); }
+
+	HOST_DEVICE INLINE float3 cross(const float3& a, const float3& b)
 	{
-		return float3{ a.x - b.x, a.y - b.y, a.z - b.z };
+		return float3{ a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x };
 	}
 
 
@@ -266,6 +316,82 @@ DEVICE INLINE float atomicMaxFloat(float* addr, float value)
 	{
 		return  { min(lhs.m_min, rhs.m_min), max(lhs.m_max, rhs.m_max) };
 	}
+	
+	HOST_DEVICE INLINE float4 qtRotation(float4 axisAngle)
+	{
+		float3 axis = normalize(float3{ axisAngle.x, axisAngle.y, axisAngle.z });
+		float  angle = axisAngle.w;
+
+		float4 q;
+		q.x = axis.x * sinf(angle / 2.0f);
+		q.y = axis.y * sinf(angle / 2.0f);
+		q.z = axis.z * sinf(angle / 2.0f);
+		q.w = cosf(angle / 2.0f);
+		return q;
+	}
+
+	HOST_DEVICE INLINE float4 qtGetIdentity(void) { return float4{ 0.0f, 0.0f, 0.0f, 1.0f }; }
+
+	HOST_DEVICE INLINE float qtDot(const float4& q0, const float4& q1)
+	{
+		return q0.x * q1.x + q0.y * q1.y + q0.z * q1.z + q0.w * q1.w;
+	}
+
+	HOST_DEVICE INLINE float4 qtNormalize(const float4& q) { return q / sqrtf(qtDot(q, q)); }
+
+	HOST_DEVICE INLINE float4 qtMul(const float4& a, const float4& b)
+	{
+		float4 ans;
+		float3 aXb = cross(float3{ a.x, a.y, a.z }, float3{ b.x, b.y, b.z });
+		ans = float4{ aXb.x, aXb.y, aXb.z, 0.0f };
+		// ans += a.w * b + b.w * a;
+		ans = ans + float4{ a.w * b.x, a.w * b.y, a.w * b.z, a.w * b.w } + float4{ b.w * a.x, b.w * a.y, b.w * a.z, b.w * a.w };
+		ans.w = a.w * b.w - dot(float3{ a.x, a.y, a.z }, float3{ b.x, b.y, b.z });
+		return ans;
+	}
+
+	HOST_DEVICE INLINE float4 qtInvert(const float4& q)
+	{
+		float4 ans;
+		ans = -q;
+		ans.w = q.w;
+		return ans;
+	}
+
+	HOST_DEVICE INLINE float3 qtRotate(const float4& q, const float3& p)
+	{
+		float4 qp = float4{ p.x, p.y, p.z, 0.0f };
+		float4 qInv = qtInvert(q);
+		float4 out = qtMul(qtMul(q, qp), qInv);
+		return float3{ out.x, out.y, out.z };
+	}
+
+	struct alignas(16) Ray
+	{
+		float3 m_origin;
+		float3 m_direction;
+		float m_tMin = 0.0f;
+		float m_tMax = FltMax;
+	};
+
+	struct Transformation 
+	{
+		float3 m_translation;
+		float3 m_scale;
+		float4 m_quat;
+	};
+
+	struct Camera
+	{
+		
+
+		float4	   m_eye; 
+		float4	   m_quat;
+		float	   m_fov;
+		float	   m_near;
+		float	   m_far;
+		float	   padd;
+	};
 
 	constexpr size_t size = sizeof(LbvhNode);
 	constexpr u32 INVALID_NODE_IDX = 0xFFFFFFFF;

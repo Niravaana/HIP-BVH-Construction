@@ -30,7 +30,7 @@ namespace BvhConstruction
 
 		void setArgs(std::vector<Argument> args);
 
-		void launch(int gx, int gy, int gz, int bx, int by, int bz, u32 sharedMemBytes, oroStream stream);
+		void launch(int gx, int gy, int gz, int bx, int by, int bz, u32 sharedMemBytes = 0, oroStream stream = 0);
 
 		void launch(int nx, oroStream stream = 0, u32 sharedMemBytes = 0);
 		void launch(int nx, int tx, oroStream stream = 0, u32 sharedMemBytes = 0);
