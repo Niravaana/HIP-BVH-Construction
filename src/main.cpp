@@ -173,67 +173,83 @@ enum TimerCodes
 
 
 
-HitInfo TraversalCPU(const Ray& ray, std::vector<LbvhNode> bvhNodes, std::vector<Triangle> primitives, Transformation& t)
+void TraversalCPU(const std::vector<Ray>& rayBuff, std::vector<LbvhNode> bvhNodes, std::vector<Triangle> primitives, Transformation& t, u8* dst, u32 width, u32 height)
 {
-	u32 nodeIdx = 0;
-	u32 top = 0;
-	u32 stack[64];
-	stack[top++] = INVALID_NODE_IDX;
-	HitInfo hit;
-	
-	Ray transformedRay;
-	transformedRay.m_origin = invTransform(ray.m_origin, t.m_scale, t.m_quat, t.m_translation);
-	transformedRay.m_direction = invTransform(ray.m_direction, t.m_scale, t.m_quat, { 0.0f,0.0f,0.0f });
-	float3 invRayDir = 1.0f / transformedRay.m_direction;
 
-	while (nodeIdx != INVALID_NODE_IDX)
+	for (int gIdx = 0; gIdx < width; gIdx++)
 	{
-		const LbvhNode& node = bvhNodes[nodeIdx];
-
-		if (LbvhNode::isLeafNode(node))
+		for (int gIdy = 0; gIdy < height; gIdy++)
 		{
-			Triangle& triangle = primitives[node.m_primIdx];
-			float3 tV0 = transform(triangle.v1, t.m_scale, t.m_quat, t.m_translation);
-			float3 tV1 = transform(triangle.v2, t.m_scale, t.m_quat, t.m_translation);
-			float3 tV2 = transform(triangle.v3, t.m_scale, t.m_quat, t.m_translation);
+			u32 nodeIdx = 0;
+			u32 top = 0;
+			u32 stack[64];
+			stack[top++] = INVALID_NODE_IDX;
+			HitInfo hit;
+			u32 index = gIdx * width + gIdy;
 
-			float4 itr = intersectTriangle(tV0, tV1, tV2, ray.m_origin, ray.m_direction);
-			if (itr.x > 0.0f && itr.y > 0.0f && itr.z > 0.0f && itr.w > 0.0f &&  itr.w < hit.m_t)
-			{
-				hit.m_primIdx = node.m_primIdx;
-				hit.m_t = itr.w;
-				hit.m_uv = {itr.x, itr.y};
-			}
-		}
-		else
-		{
-			const Aabb left = bvhNodes[node.m_leftChildIdx].m_aabb;
-			const Aabb right = bvhNodes[node.m_rightChildIdx].m_aabb;
-			const float2 t0 = left.intersect(transformedRay.m_origin, invRayDir, hit.m_t);
-			const float2 t1 = right.intersect(transformedRay.m_origin, invRayDir, hit.m_t);
-			const bool hitLeft = (t0.x <= t0.y);
-			const bool hitRight = (t1.x <= t1.y);
+			Ray ray = rayBuff[index];
+			Ray transformedRay;
+			transformedRay.m_origin = invTransform(ray.m_origin, t.m_scale, t.m_quat, t.m_translation);
+			transformedRay.m_direction = invTransform(ray.m_direction, t.m_scale, t.m_quat, { 0.0f,0.0f,0.0f });
+			float3 invRayDir = 1.0f / transformedRay.m_direction;
 
-			if (hitLeft || hitRight)
+			while (nodeIdx != INVALID_NODE_IDX)
 			{
-				if (hitLeft && hitRight)
+				const LbvhNode& node = bvhNodes[nodeIdx];
+
+				if (LbvhNode::isLeafNode(node))
 				{
-					nodeIdx = (t0.x < t1.x) ? node.m_leftChildIdx : node.m_rightChildIdx;
-					if (top < 64)
+					Triangle& triangle = primitives[node.m_primIdx];
+					float3 tV0 = transform(triangle.v1, t.m_scale, t.m_quat, t.m_translation);
+					float3 tV1 = transform(triangle.v2, t.m_scale, t.m_quat, t.m_translation);
+					float3 tV2 = transform(triangle.v3, t.m_scale, t.m_quat, t.m_translation);
+
+					float4 itr = intersectTriangle(tV0, tV1, tV2, ray.m_origin, ray.m_direction);
+					if (itr.x > 0.0f && itr.y > 0.0f && itr.z > 0.0f && itr.w > 0.0f && itr.w < hit.m_t)
 					{
-						stack[top++] =  (t0.x < t1.x) ? node.m_rightChildIdx : node.m_leftChildIdx;
+						hit.m_primIdx = node.m_primIdx;
+						hit.m_t = itr.w;
+						hit.m_uv = { itr.x, itr.y };
 					}
 				}
 				else
 				{
-					nodeIdx = (hitLeft) ? node.m_leftChildIdx : node.m_rightChildIdx;
+					const Aabb left = bvhNodes[node.m_leftChildIdx].m_aabb;
+					const Aabb right = bvhNodes[node.m_rightChildIdx].m_aabb;
+					const float2 t0 = left.intersect(transformedRay.m_origin, invRayDir, hit.m_t);
+					const float2 t1 = right.intersect(transformedRay.m_origin, invRayDir, hit.m_t);
+					const bool hitLeft = (t0.x <= t0.y);
+					const bool hitRight = (t1.x <= t1.y);
+
+					if (hitLeft || hitRight)
+					{
+						if (hitLeft && hitRight)
+						{
+							nodeIdx = (t0.x < t1.x) ? node.m_leftChildIdx : node.m_rightChildIdx;
+							if (top < 64)
+							{
+								stack[top++] = (t0.x < t1.x) ? node.m_rightChildIdx : node.m_leftChildIdx;
+							}
+						}
+						else
+						{
+							nodeIdx = (hitLeft) ? node.m_leftChildIdx : node.m_rightChildIdx;
+						}
+						continue;
+					}
 				}
-				continue;
+				nodeIdx = stack[--top];
+			}
+
+			if (hit.m_primIdx != INVALID_PRIM_IDX)
+			{
+				dst[index * 4 + 0] = (hit.m_t / 30.0f) * 255;
+				dst[index * 4 + 1] = (hit.m_t / 30.0f) * 255;
+				dst[index * 4 + 2] = (hit.m_t / 30.0f) * 255;
+				dst[index * 4 + 3] = 255;
 			}
 		}
-		nodeIdx = stack[--top];
 	}
-	return hit;
 }
 
 int main(int argc, char* argv[])
@@ -392,7 +408,7 @@ int main(int argc, char* argv[])
 		Transformation t;
 		t.m_translation = float3{ 0.0f, 0.0f, -3.0f };
 		t.m_scale = float3{ 1.0f, 1.0f, 1.0f };
-		t.m_quat = {0.0f, 1.0f, 0.0f, 1.0f}; qtGetIdentity();
+		t.m_quat = qtGetIdentity();
 		Oro::GpuMemory<Transformation> d_transformations(1); d_transformations.reset();
 		OrochiUtils::copyHtoD(d_transformations.ptr(), &t, 1);
 
@@ -435,35 +451,20 @@ int main(int argc, char* argv[])
 #endif
 
 
-#if _CPU
+#if _CPU																																																						
 		//CPU traversal 
 		const u32 launchSize = width * height;
 		std::vector<HitInfo> h_hitInfo;
 		u8* dst = (u8*)malloc(launchSize * 4);
 		memset(dst, 0, launchSize * 4);
 
-		for (int i = 0; i < width; i++)
-		{
-			for (int j = 0; j < height; j++)
-			{
-				u32 index = i + j * width;
-				HitInfo hit = TraversalCPU(debugRayBuff[index], debugBvhNodes, debugTriangle, t);
-				if (hit.m_primIdx != INVALID_PRIM_IDX)
-				{
-					dst[index * 4 + 0] = (hit.m_t/30.0f) * 255;
-					dst[index * 4 + 1] = (hit.m_t / 30.0f) * 255;
-					dst[index * 4 + 2] = (hit.m_t / 30.0f) * 255;
-					dst[index * 4 + 3] = 255;
-				}
-			}
-		}
+		TraversalCPU(debugRayBuff, debugBvhNodes, debugTriangle, t, dst, width, height);
 
 		stbi_write_png("test.png", width, height, 4, dst, width * 4);
 		free(dst);
 #else
 
 		Oro::GpuMemory<u8> d_colorBuffer(width* height * 4); d_colorBuffer.reset();
-		Oro::GpuMemory<HitInfo> d_hitInfoBuff(width* height);
 		//Traversal kernel
 		{
 			const u32 blockSizeX = 8;
@@ -479,15 +480,12 @@ int main(int argc, char* argv[])
 				"BvhTraversal",
 				std::nullopt);
 
-			traversalKernel.setArgs({ d_rayBuffer.ptr(), d_triangleBuff.ptr(), d_bvhNodes.ptr(), d_transformations.ptr(), d_colorBuffer.ptr(), d_hitInfoBuff.ptr(), width, height });
+			traversalKernel.setArgs({ d_rayBuffer.ptr(), d_triangleBuff.ptr(), d_bvhNodes.ptr(), d_transformations.ptr(), d_colorBuffer.ptr(), width, height });
 			timer.measure(TimerCodes::TraversalTime, [&]() { traversalKernel.launch(gridSizeX, gridSizeY, 1, blockSizeX, blockSizeY, 1); });
 		}
 
 		stbi_write_png("test.png", width, height, 4, d_colorBuffer.getData().data(), width * 4);
 #endif 
-
-		const auto tes = d_hitInfoBuff.getData();
-		const auto xx = d_transformations.getData();
 
 		CHECK_ORO(oroCtxDestroy(orochiCtxt));
 	}

@@ -71,6 +71,85 @@ namespace BvhConstruction
 	{
 		u32 x, y;
 	};
+
+	HOST_DEVICE INLINE float3 operator+(const float3& a, const float3& b)
+	{
+		return float3{ a.x + b.x, a.y + b.y, a.z + b.z };
+	}
+
+	HOST_DEVICE INLINE float4 operator+(const float4& a, const float4& b)
+	{
+		return float4{ a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w };
+	}
+
+	HOST_DEVICE INLINE float3 operator-(const float3& a, const float3& b)
+	{
+		return float3{ a.x - b.x, a.y - b.y, a.z - b.z };
+	}
+
+	HOST_DEVICE INLINE float4 operator-(const float4& a, const float4& b)
+	{
+		return float4{ a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w };
+	}
+
+	HOST_DEVICE INLINE float2 operator-(const float2& a, const float2& b)
+	{
+		return float2{ a.x - b.x, a.y - b.y };
+	}
+
+	HOST_DEVICE INLINE float3 operator-(const float3& a)
+	{
+		return float3{ -a.x, -a.y, -a.z };
+	}
+
+	HOST_DEVICE INLINE float4 operator-(const float4& a)
+	{
+		return float4{ -a.x, -a.y, -a.z, -a.w };
+	}
+
+	HOST_DEVICE INLINE float3 operator/(const float3& a, const float3& b)
+	{
+		return float3{ a.x / b.x, a.y / b.y, a.z / b.z };
+	}
+
+	HOST_DEVICE INLINE float3 operator/(const float3& a, const float& b)
+	{
+		return float3{ a.x / b, a.y / b, a.z / b };
+	}
+
+	HOST_DEVICE INLINE float3 operator/(const float b, const float3& a)
+	{
+		return float3{ b / a.x , b / a.y , b / a.z };
+	}
+
+	HOST_DEVICE INLINE float4 operator/(const float4& a, const float& b)
+	{
+		return float4{ a.x / b, a.y / b, a.z / b, a.w / b };
+	}
+
+	HOST_DEVICE INLINE float3& operator*=(float3& a, const float c)
+	{
+		a.x *= c;
+		a.y *= c;
+		a.z *= c;
+		return a;
+	}
+
+	HOST_DEVICE INLINE float3 operator*(const float c, const float3& a)
+	{
+		return float3{ c * a.x, c * a.y, c * a.z };
+	}
+
+	HOST_DEVICE INLINE float3 operator*(const float3& a, const float3& b)
+	{
+		return float3{ a.x * b.x, a.y * b.y, a.z * b.z };
+	}
+
+	HOST_DEVICE INLINE float3 operator*(const float3& a, const float c)
+	{
+		return float3{ c * a.x, c * a.y, c * a.z };
+	}
+
 #endif
 
 	HOST_DEVICE INLINE float3 max(const float3& a, const float3& b)
@@ -129,83 +208,7 @@ namespace BvhConstruction
 		return float3{ (x, y, z) };
 	}
 
-	HOST_DEVICE INLINE float3 operator+(const float3& a, const float3& b)
-	{
-		return float3{ a.x + b.x, a.y + b.y, a.z + b.z };
-	}
 
-	HOST_DEVICE INLINE float4 operator+(const float4& a, const float4& b)
-	{
-		return float4{ a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w };
-	}
-
-	HOST_DEVICE INLINE float3 operator-(const float3& a, const float3& b)
-	{
-		return float3{ a.x - b.x, a.y - b.y, a.z - b.z };
-	}
-
-	HOST_DEVICE INLINE float4 operator-(const float4& a, const float4& b)
-	{
-		return float4{ a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w };
-	}
-
-	HOST_DEVICE INLINE float2 operator-(const float2& a, const float2& b)
-	{
-		return float2{ a.x - b.x, a.y - b.y};
-	}
-
-	HOST_DEVICE INLINE float3 operator-(const float3& a)
-	{
-		return float3{ -a.x, -a.y, -a.z };
-	}
-
-	HOST_DEVICE INLINE float4 operator-(const float4& a)
-	{
-		return float4{ -a.x, -a.y, -a.z, -a.w };
-	}
-
-	HOST_DEVICE INLINE float3 operator/(const float3& a, const float3& b)
-	{
-		return float3{ a.x / b.x, a.y / b.y, a.z / b.z };
-	}
-
-	HOST_DEVICE INLINE float3 operator/(const float3& a, const float& b)
-	{
-		return float3{ a.x / b, a.y / b, a.z / b };
-	}
-
-	HOST_DEVICE INLINE float3 operator/( const float b, const float3& a)
-	{
-		return float3{ b/ a.x , b/ a.y , b/ a.z };
-	}
-
-	HOST_DEVICE INLINE float4 operator/(const float4& a, const float& b)
-	{
-		return float4{ a.x / b, a.y / b, a.z / b, a.w / b };
-	}
-
-	HOST_DEVICE INLINE float3& operator*=(float3& a, const float c)
-	{
-		a.x *= c;
-		a.y *= c;
-		a.z *= c;
-		return a;
-	}
-
-	HOST_DEVICE INLINE float3 operator*(const float c, const float3& a)
-	{
-		return float3{ c * a.x, c * a.y, c * a.z };
-	}
-
-	HOST_DEVICE INLINE float3 operator*(const float3& a, const float3& b)
-	{
-		return float3{ a.x * b.x, a.y * b.y, a.z * b.z };
-	}
-
-	HOST_DEVICE INLINE float3 operator*(const float3& a, const float c)
-	{
-		return float3{ c * a.x, c * a.y, c * a.z };
-	}
 
 	HOST_DEVICE INLINE float dot(const float3& a, const float3& b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
 
@@ -324,20 +327,22 @@ DEVICE INLINE float atomicMaxFloat(float* addr, float value)
 		float3 m_max;
 	};
 
-	struct Triangle
+	struct alignas(64) Triangle
 	{
 		float3 v1;
 		float3 v2;
 		float3 v3;
 	};
 
-	struct LbvhNode
+	struct alignas(64) LbvhNode
 	{
 		u32 m_parentIdx;
 		u32 m_leftChildIdx;
 		u32 m_rightChildIdx;
-		Aabb m_aabb;
 		u32 m_primIdx;
+		Aabb m_aabb;
+		float m_pad1;
+		float m_pad2;
 
 		static HOST_DEVICE bool isLeafNode(const LbvhNode& node)
 		{
@@ -422,7 +427,7 @@ DEVICE INLINE float atomicMaxFloat(float* addr, float value)
 		return float4{ u, v, w, t } / (dot(normal, rayDir) * 2.0f);
 	}
 
-	struct alignas(16) Ray
+	struct alignas(64) Ray
 	{
 		float3 m_origin;
 		float3 m_direction;
@@ -430,32 +435,32 @@ DEVICE INLINE float atomicMaxFloat(float* addr, float value)
 		float m_tMax = FltMax;
 	};
 
-	struct Transformation 
+	struct alignas(64) Transformation
 	{
 		float3 m_translation;
+		float m_pad;
 		float3 m_scale;
+		float m_pad1;
 		float4 m_quat;
 	};
 
-	struct Camera
+	struct alignas(64) Camera
 	{
-		
-
 		float4	   m_eye; 
 		float4	   m_quat;
 		float	   m_fov;
 		float	   m_near;
 		float	   m_far;
-		float	   padd;
+		float	   m_pad;
 	};
 
-	struct HitInfo
+	struct alignas(64) HitInfo
 	{
 		u32 m_primIdx = INVALID_PRIM_IDX;
 		float m_t = FltMax;
 		float2 m_uv; //barycentric coordinates
 	};
 
-	
+	constexpr size_t size = sizeof(Ray);
 
 }

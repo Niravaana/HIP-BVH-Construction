@@ -358,18 +358,20 @@ extern "C" __global__ void GenerateRays(const Camera* __restrict__ cam, Ray* __r
 		raysBuffOut[gIdx * height + gIdy].m_origin = float3{ cam->m_eye.x, cam->m_eye.y, cam->m_eye.z };
 		float4 direction = cam->m_eye + float4{ dir.x * cam->m_far, dir.y * cam->m_far, dir.z * cam->m_far, 0.0f };
 		raysBuffOut[gIdx * height + gIdy].m_direction = normalize(float3{ direction.x, direction.y, direction.z });
+		raysBuffOut[gIdx * height + gIdy].m_tMin = 0.0f;
+		raysBuffOut[gIdx * height + gIdy].m_tMax = FltMax;
 	}
 }
 
-extern "C" __global__ void BvhTraversal(const  Ray* __restrict__ raysBuff, const  Triangle* __restrict__ primitives, const LbvhNode* __restrict__ bvhNodes, const Transformation* __restrict__ tr,  u8* __restrict__ colorBuffOut, HitInfo* hitOut, const u32 width, const u32 height)
+extern "C" __global__ void BvhTraversal(const  Ray* raysBuff, const  Triangle* primitives, const LbvhNode* bvhNodes, Transformation* tr,  u8* colorBuffOut, const u32 width, const u32 height)
 {
 	const int gIdx = blockIdx.x * blockDim.x + threadIdx.x;
 	const int gIdy = blockIdx.y * blockDim.y + threadIdx.y;
 
-	/*if (gIdx >= width) return;
-	if (gIdy >= height) return;*/
+	if (gIdx >= width) return;
+	if (gIdy >= height) return;
 
-	u32 index = gIdx + gIdy * width;
+	u32 index = gIdx * width + gIdy;
 	const Ray ray = raysBuff[index];
 	u32 nodeIdx = 0;
 	u32 top = 0;
@@ -394,6 +396,7 @@ extern "C" __global__ void BvhTraversal(const  Ray* __restrict__ raysBuff, const
 			float3 tV2 = transform(triangle.v3, tr[0].m_scale, tr[0].m_quat, tr[0].m_translation);
 
 			float4 itr = intersectTriangle(tV0, tV1, tV2, ray.m_origin, ray.m_direction);
+
 			if (itr.x > 0.0f && itr.y > 0.0f && itr.z > 0.0f && itr.w > 0.0f && itr.w < hit.m_t)
 			{
 				hit.m_primIdx = node.m_primIdx;
@@ -407,6 +410,7 @@ extern "C" __global__ void BvhTraversal(const  Ray* __restrict__ raysBuff, const
 			const Aabb right = bvhNodes[node.m_rightChildIdx].m_aabb;
 			const float2 t0 = left.intersect(transformedRay.m_origin, invRayDir, hit.m_t);
 			const float2 t1 = right.intersect(transformedRay.m_origin, invRayDir, hit.m_t);
+
 			const bool hitLeft = (t0.x <= t0.y);
 			const bool hitRight = (t1.x <= t1.y);
 
@@ -429,8 +433,6 @@ extern "C" __global__ void BvhTraversal(const  Ray* __restrict__ raysBuff, const
 		}
 		nodeIdx = stack[--top];
 	}
-
-	hitOut[index] = hit;
 	
 	if (hit.m_primIdx != INVALID_PRIM_IDX)
 	{
