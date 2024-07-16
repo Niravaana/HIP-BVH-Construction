@@ -22,23 +22,26 @@
 
 #include <math.h>
 
+
 namespace BvhConstruction
 {
+	using u32 = uint32_t;
+	using u8 = unsigned char;
+	using u64 = unsigned long long;
+
 	constexpr float FltMin = 1.175494351e-38f;
 	constexpr float FltMax = 3.402823466e+38f;
 	constexpr int	IntMin = -2147483647 - 1;
 	constexpr int	IntMax = 2147483647;
 	constexpr float Pi = 3.14159265358979323846f;
+	constexpr u32 INVALID_NODE_IDX = 0xFFFFFFFF;
+	constexpr u32 INVALID_PRIM_IDX = 0xFFFFFFFF;
 
 	enum Error
 	{
 		Success,
 		Failure
 	};
-
-	using u32 = uint32_t;
-	using u8 = unsigned char;
-	using u64 = unsigned long long;
 
 #ifdef __KERNELCC__
 #if __gfx900__ || __gfx902__ || __gfx904__ || __gfx906__ || __gfx908__ || __gfx909__ || __gfx90a__ || __gfx90c__
@@ -171,6 +174,11 @@ namespace BvhConstruction
 		return float3{ a.x / b, a.y / b, a.z / b };
 	}
 
+	HOST_DEVICE INLINE float3 operator/( const float b, const float3& a)
+	{
+		return float3{ b/ a.x , b/ a.y , b/ a.z };
+	}
+
 	HOST_DEVICE INLINE float4 operator/(const float4& a, const float& b)
 	{
 		return float4{ a.x / b, a.y / b, a.z / b, a.w / b };
@@ -187,6 +195,11 @@ namespace BvhConstruction
 	HOST_DEVICE INLINE float3 operator*(const float c, const float3& a)
 	{
 		return float3{ c * a.x, c * a.y, c * a.z };
+	}
+
+	HOST_DEVICE INLINE float3 operator*(const float3& a, const float3& b)
+	{
+		return float3{ a.x * b.x, a.y * b.y, a.z * b.z };
 	}
 
 	HOST_DEVICE INLINE float3 operator*(const float3& a, const float c)
@@ -279,6 +292,21 @@ DEVICE INLINE float atomicMaxFloat(float* addr, float value)
 			m_max = min(m_max, box.m_max);
 		}
 		
+		HOST_DEVICE float2 intersect(const float3& from, const float3& invRay, float maxt) const
+		{
+			const float3 dFar = (m_max - from) * (invRay);
+			const float3 dNear = (m_min - from) * (invRay);
+			const float3 tFar = max(dFar, dNear);
+			const float3 tNear = min(dFar, dNear);
+			float minFar = fmin(tFar.x, fmin(tFar.y, tFar.z));
+			float maxNear = fmax(tNear.x, fmax(tNear.y, tNear.z));
+
+			minFar = fmin(maxt, minFar);
+			maxNear = fmax(0.0f, maxNear);
+
+			return { maxNear, minFar };
+	}
+
 #if defined( __KERNELCC__ )
 		DEVICE void atomicGrow(const Aabb& aabb)
 		{
@@ -310,6 +338,11 @@ DEVICE INLINE float atomicMaxFloat(float* addr, float value)
 		u32 m_rightChildIdx;
 		Aabb m_aabb;
 		u32 m_primIdx;
+
+		static HOST_DEVICE bool isLeafNode(const LbvhNode& node)
+		{
+			return (node.m_leftChildIdx == INVALID_NODE_IDX && node.m_rightChildIdx == INVALID_NODE_IDX && node.m_primIdx != INVALID_NODE_IDX);
+		}
 	};
 
 	HOST_DEVICE INLINE Aabb merge(const Aabb lhs, const Aabb rhs)
@@ -366,6 +399,29 @@ DEVICE INLINE float atomicMaxFloat(float* addr, float value)
 		return float3{ out.x, out.y, out.z };
 	}
 
+	HOST_DEVICE INLINE  float3 qtInvRotate(const float4& q, const float3& vec) { return qtRotate(qtInvert(q), vec); }
+
+	HOST_DEVICE INLINE  float3 invTransform(const float3& p, const float3& scale, const float4& rotation, const float3& translation) { return qtInvRotate(rotation, p - translation) / scale; }
+
+	HOST_DEVICE INLINE  float3 transform(const float3& p, const float3& scale, const float4& rotation, const float3& translation) { return qtRotate(rotation, scale * p) + translation; }
+
+	HOST_DEVICE INLINE  float4 intersectTriangle(const float3& v0, const float3& v1, const float3& v2, const float3& rayOrg, const float3& rayDir)
+	{
+		const float3 pos0 = v0 - rayOrg;
+		const float3 pos1 = v1 - rayOrg;
+		const float3 pos2 = v2 - rayOrg;
+		const float3 edge0 = v2 - v0;
+		const float3 edge1 = v0 - v1;
+		const float3 edge2 = v1 - v2;
+		const float3 normal = cross(edge1, edge0);
+		const float u = dot(cross(pos0 + pos2, edge0), rayDir);
+		const float v = dot(cross(pos1 + pos0, edge1), rayDir);
+		const float w = dot(cross(pos2 + pos1, edge2), rayDir);
+		const float t = dot(pos0, normal) * 2.0f;
+
+		return float4{ u, v, w, t } / (dot(normal, rayDir) * 2.0f);
+	}
+
 	struct alignas(16) Ray
 	{
 		float3 m_origin;
@@ -393,8 +449,13 @@ DEVICE INLINE float atomicMaxFloat(float* addr, float value)
 		float	   padd;
 	};
 
-	constexpr size_t size = sizeof(LbvhNode);
-	constexpr u32 INVALID_NODE_IDX = 0xFFFFFFFF;
-	constexpr u32 INVALID_PRIM_IDX = 0xFFFFFFFF;
+	struct HitInfo
+	{
+		u32 m_primIdx = INVALID_PRIM_IDX;
+		float m_t = FltMax;
+		float2 m_uv; //barycentric coordinates
+	};
+
+	
 
 }

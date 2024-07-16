@@ -361,3 +361,7 @@ extern "C" __global__ void GenerateRays(const Camera* __restrict__ cam, Ray* __r
 	}
 }
 
+//extern "C" __global__ void BvhTraversal(const  Ray* __restrict__ raysBuff, const  Triangle* __restrict__ primtives, const LbvhNode* __restrict__ bvhNodes,  const u32 totalRays)
+//{
+//
+//}

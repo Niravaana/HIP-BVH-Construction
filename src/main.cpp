@@ -1,5 +1,9 @@
 #include <dependencies/Orochi/Orochi/OrochiUtils.h>
 #include <dependencies/Orochi/Orochi/GpuMemory.h>
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include <dependencies/stbi/stbi_image_write.h>
+#define STB_IMAGE_IMPLEMENTATION
+#include <dependencies/stbi/stb_image.h>
 #include <ParallelPrimitives/RadixSort.h>
 #include <src/Error.h>
 #include <src/Kernel.h>
@@ -166,6 +170,71 @@ enum TimerCodes
 	BvhBuildTime
 };
 
+
+
+HitInfo TraversalCPU(const Ray& ray, std::vector<LbvhNode> bvhNodes, std::vector<Triangle> primitives, Transformation& t)
+{
+	u32 nodeIdx = 0;
+	u32 top = 0;
+	u32 stack[64];
+	stack[top++] = INVALID_NODE_IDX;
+	HitInfo hit;
+	
+	Ray transformedRay;
+	transformedRay.m_origin = invTransform(ray.m_origin, t.m_scale, t.m_quat, t.m_translation);
+	transformedRay.m_direction = invTransform(ray.m_direction, t.m_scale, t.m_quat, { 0.0f,0.0f,0.0f });
+	float3 invRayDir = 1.0f / transformedRay.m_direction;
+
+	while (nodeIdx != INVALID_NODE_IDX)
+	{
+		const LbvhNode& node = bvhNodes[nodeIdx];
+
+		if (LbvhNode::isLeafNode(node))
+		{
+			Triangle& triangle = primitives[node.m_primIdx];
+			float3 tV0 = transform(triangle.v1, t.m_scale, t.m_quat, t.m_translation);
+			float3 tV1 = transform(triangle.v2, t.m_scale, t.m_quat, t.m_translation);
+			float3 tV2 = transform(triangle.v3, t.m_scale, t.m_quat, t.m_translation);
+
+			float4 itr = intersectTriangle(tV0, tV1, tV2, ray.m_origin, ray.m_direction);
+			if (itr.x > 0.0f && itr.y > 0.0f && itr.z > 0.0f && itr.w > 0.0f &&  itr.w < hit.m_t)
+			{
+				hit.m_primIdx = node.m_primIdx;
+				hit.m_t = itr.w;
+				hit.m_uv = {itr.x, itr.y};
+			}
+		}
+		else
+		{
+			const Aabb left = bvhNodes[node.m_leftChildIdx].m_aabb;
+			const Aabb right = bvhNodes[node.m_rightChildIdx].m_aabb;
+			const float2 t0 = left.intersect(transformedRay.m_origin, invRayDir, hit.m_t);
+			const float2 t1 = right.intersect(transformedRay.m_origin, invRayDir, hit.m_t);
+			const bool hitLeft = (t0.x <= t0.y);
+			const bool hitRight = (t1.x <= t1.y);
+
+			if (hitLeft || hitRight)
+			{
+				if (hitLeft && hitRight)
+				{
+					nodeIdx = (t0.x < t1.x) ? node.m_leftChildIdx : node.m_rightChildIdx;
+					if (top < 64)
+					{
+						stack[top++] =  (t0.x < t1.x) ? node.m_rightChildIdx : node.m_leftChildIdx;
+					}
+				}
+				else
+				{
+					nodeIdx = (hitLeft) ? node.m_leftChildIdx : node.m_rightChildIdx;
+				}
+				continue;
+			}
+		}
+		nodeIdx = stack[--top];
+	}
+	return hit;
+}
+
 int main(int argc, char* argv[])
 {
 	try
@@ -176,8 +245,6 @@ int main(int argc, char* argv[])
 		
 		std::vector<Triangle> triangles;
 		loadScene("../src/meshes/cornellbox/cornellbox.obj", "../src/meshes/cornellbox/", triangles);
-		
-
 
 		CHECK_ORO((oroError)oroInitialize((oroApi)(ORO_API_HIP), 0));
 		CHECK_ORO(oroInit(0));
@@ -324,21 +391,22 @@ int main(int argc, char* argv[])
 		Transformation t;
 		t.m_translation = float3{ 0.0f, 0.0f, -3.0f };
 		t.m_scale = float3{ 1.0f, 1.0f, 1.0f };
+		t.m_quat = qtGetIdentity();
 		Oro::GpuMemory<Transformation> d_transformations(1); d_transformations.reset();
 		OrochiUtils::copyHtoD(d_transformations.ptr(), &t, 1);
 
 		//create camera 
 		Camera cam;
 		cam.m_eye = float4{ 0.0f, 2.5f, 5.8f, 0.0f };
-		cam.m_quat = qtRotation(float4{ 0.0f, 0.0f, 1.0f, 0.0f });
+		cam.m_quat = qtRotation(float4{ 0.0f, 0.0f, 1.0f, -1.57f });
 		cam.m_fov = 45.0f *  Pi / 180.f;
 		cam.m_near = 0.0f;
 		cam.m_far = 100000.0f;
 		Oro::GpuMemory<Camera> d_cam(1); d_cam.reset();
 		OrochiUtils::copyHtoD(d_cam.ptr(), &cam, 1);
 
-		u32 width = 1280;
-		u32 height = 720;
+		u32 width = 512;
+		u32 height = 512;
 		Oro::GpuMemory<Ray> d_rayBuffer(width* height); d_rayBuffer.reset();
 		
 		//generate rays
@@ -362,7 +430,54 @@ int main(int argc, char* argv[])
 
 #if _DEBUG
 		const auto debugRayBuff = d_rayBuffer.getData();
+		const auto debugBvhNodes = d_bvhNodes.getData();
 #endif
+
+
+#if _DEBUG
+		//CPU traversal 
+		const u32 launchSize = width * height;
+		std::vector<HitInfo> h_hitInfo;
+		u8* dst = (u8*)malloc(launchSize * 4);
+		memset(dst, 0, launchSize * 4);
+
+		for (int i = 0; i < width; i++)
+		{
+			for (int j = 0; j < height; j++)
+			{
+				u32 index = i + j * width;
+				HitInfo hit = TraversalCPU(debugRayBuff[index], debugBvhNodes, debugTriangle, t);
+				if (hit.m_primIdx != INVALID_PRIM_IDX)
+				{
+					dst[index * 4 + 0] = (hit.m_t/30.0f) * 255;
+					dst[index * 4 + 1] = (hit.m_t / 30.0f) * 255;
+					dst[index * 4 + 2] = (hit.m_t / 30.0f) * 255;
+					dst[index * 4 + 3] = 255;
+				}
+			}
+		}
+
+		stbi_write_png("test.png", width, height, 4, dst, width * 4);
+		free(dst);
+#else
+
+		////Traversal kernel
+		//{
+		//	const u32 launchSize = width * height;
+		//	Kernel traversalKernel;
+
+		//	buildKernelFromSrc(
+		//		traversalKernel,
+		//		orochiDevice,
+		//		"../src/LbvhKernel.h",
+		//		"BvhTraversal",
+		//		std::nullopt);
+
+		//	traversalKernel.setArgs({ d_rayBuffer.ptr(), d_triangleBuff.ptr(), d_bvhNodes.ptr(), launchSize });
+		//	timer.measure(TimerCodes::BvhBuildTime, [&]() { traversalKernel.launch(launchSize); });
+		//}
+#endif 
+
 
 		CHECK_ORO(oroCtxDestroy(orochiCtxt));
 	}
