@@ -167,7 +167,8 @@ enum TimerCodes
 	CalculateCentroidExtentsTime,
 	CalculateMortonCodesTime,
 	SortingTime,
-	BvhBuildTime
+	BvhBuildTime,
+	TraversalTime
 };
 
 
@@ -391,7 +392,7 @@ int main(int argc, char* argv[])
 		Transformation t;
 		t.m_translation = float3{ 0.0f, 0.0f, -3.0f };
 		t.m_scale = float3{ 1.0f, 1.0f, 1.0f };
-		t.m_quat = qtGetIdentity();
+		t.m_quat = {0.0f, 1.0f, 0.0f, 1.0f}; qtGetIdentity();
 		Oro::GpuMemory<Transformation> d_transformations(1); d_transformations.reset();
 		OrochiUtils::copyHtoD(d_transformations.ptr(), &t, 1);
 
@@ -434,7 +435,7 @@ int main(int argc, char* argv[])
 #endif
 
 
-#if _DEBUG
+#if _CPU
 		//CPU traversal 
 		const u32 launchSize = width * height;
 		std::vector<HitInfo> h_hitInfo;
@@ -461,23 +462,32 @@ int main(int argc, char* argv[])
 		free(dst);
 #else
 
-		////Traversal kernel
-		//{
-		//	const u32 launchSize = width * height;
-		//	Kernel traversalKernel;
+		Oro::GpuMemory<u8> d_colorBuffer(width* height * 4); d_colorBuffer.reset();
+		Oro::GpuMemory<HitInfo> d_hitInfoBuff(width* height);
+		//Traversal kernel
+		{
+			const u32 blockSizeX = 8;
+			const u32 blockSizeY = 8;
+			const u32 gridSizeX = (width + blockSizeX - 1) / blockSizeX;
+			const u32 gridSizeY = (height + blockSizeY - 1) / blockSizeY;
+			Kernel traversalKernel;
 
-		//	buildKernelFromSrc(
-		//		traversalKernel,
-		//		orochiDevice,
-		//		"../src/LbvhKernel.h",
-		//		"BvhTraversal",
-		//		std::nullopt);
+			buildKernelFromSrc(
+				traversalKernel,
+				orochiDevice,
+				"../src/LbvhKernel.h",
+				"BvhTraversal",
+				std::nullopt);
 
-		//	traversalKernel.setArgs({ d_rayBuffer.ptr(), d_triangleBuff.ptr(), d_bvhNodes.ptr(), launchSize });
-		//	timer.measure(TimerCodes::BvhBuildTime, [&]() { traversalKernel.launch(launchSize); });
-		//}
+			traversalKernel.setArgs({ d_rayBuffer.ptr(), d_triangleBuff.ptr(), d_bvhNodes.ptr(), d_transformations.ptr(), d_colorBuffer.ptr(), d_hitInfoBuff.ptr(), width, height });
+			timer.measure(TimerCodes::TraversalTime, [&]() { traversalKernel.launch(gridSizeX, gridSizeY, 1, blockSizeX, blockSizeY, 1); });
+		}
+
+		stbi_write_png("test.png", width, height, 4, d_colorBuffer.getData().data(), width * 4);
 #endif 
 
+		const auto tes = d_hitInfoBuff.getData();
+		const auto xx = d_transformations.getData();
 
 		CHECK_ORO(oroCtxDestroy(orochiCtxt));
 	}

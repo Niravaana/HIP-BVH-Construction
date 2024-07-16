@@ -361,7 +361,82 @@ extern "C" __global__ void GenerateRays(const Camera* __restrict__ cam, Ray* __r
 	}
 }
 
-//extern "C" __global__ void BvhTraversal(const  Ray* __restrict__ raysBuff, const  Triangle* __restrict__ primtives, const LbvhNode* __restrict__ bvhNodes,  const u32 totalRays)
-//{
-//
-//}
+extern "C" __global__ void BvhTraversal(const  Ray* __restrict__ raysBuff, const  Triangle* __restrict__ primitives, const LbvhNode* __restrict__ bvhNodes, const Transformation* __restrict__ tr,  u8* __restrict__ colorBuffOut, HitInfo* hitOut, const u32 width, const u32 height)
+{
+	const int gIdx = blockIdx.x * blockDim.x + threadIdx.x;
+	const int gIdy = blockIdx.y * blockDim.y + threadIdx.y;
+
+	/*if (gIdx >= width) return;
+	if (gIdy >= height) return;*/
+
+	u32 index = gIdx + gIdy * width;
+	const Ray ray = raysBuff[index];
+	u32 nodeIdx = 0;
+	u32 top = 0;
+	u32 stack[64];
+	stack[top++] = INVALID_NODE_IDX;
+	HitInfo hit;
+
+	Ray transformedRay;
+	transformedRay.m_origin = invTransform(ray.m_origin, tr[0].m_scale, tr[0].m_quat, tr[0].m_translation);
+	transformedRay.m_direction = invTransform(ray.m_direction, tr[0].m_scale, tr[0].m_quat, { 0.0f,0.0f,0.0f });
+	float3 invRayDir = 1.0f / transformedRay.m_direction;
+
+	while (nodeIdx != INVALID_NODE_IDX)
+	{
+		const LbvhNode& node = bvhNodes[nodeIdx];
+
+		if (LbvhNode::isLeafNode(node))
+		{
+			const Triangle& triangle = primitives[node.m_primIdx];
+			float3 tV0 = transform(triangle.v1, tr[0].m_scale, tr[0].m_quat, tr[0].m_translation);
+			float3 tV1 = transform(triangle.v2, tr[0].m_scale, tr[0].m_quat, tr[0].m_translation);
+			float3 tV2 = transform(triangle.v3, tr[0].m_scale, tr[0].m_quat, tr[0].m_translation);
+
+			float4 itr = intersectTriangle(tV0, tV1, tV2, ray.m_origin, ray.m_direction);
+			if (itr.x > 0.0f && itr.y > 0.0f && itr.z > 0.0f && itr.w > 0.0f && itr.w < hit.m_t)
+			{
+				hit.m_primIdx = node.m_primIdx;
+				hit.m_t = itr.w;
+				hit.m_uv = { itr.x, itr.y };
+			}
+		}
+		else
+		{
+			const Aabb left = bvhNodes[node.m_leftChildIdx].m_aabb;
+			const Aabb right = bvhNodes[node.m_rightChildIdx].m_aabb;
+			const float2 t0 = left.intersect(transformedRay.m_origin, invRayDir, hit.m_t);
+			const float2 t1 = right.intersect(transformedRay.m_origin, invRayDir, hit.m_t);
+			const bool hitLeft = (t0.x <= t0.y);
+			const bool hitRight = (t1.x <= t1.y);
+
+			if (hitLeft || hitRight)
+			{
+				if (hitLeft && hitRight)
+				{
+					nodeIdx = (t0.x < t1.x) ? node.m_leftChildIdx : node.m_rightChildIdx;
+					if (top < 64)
+					{
+						stack[top++] = (t0.x < t1.x) ? node.m_rightChildIdx : node.m_leftChildIdx;
+					}
+				}
+				else
+				{
+					nodeIdx = (hitLeft) ? node.m_leftChildIdx : node.m_rightChildIdx;
+				}
+				continue;
+			}
+		}
+		nodeIdx = stack[--top];
+	}
+
+	hitOut[index] = hit;
+	
+	if (hit.m_primIdx != INVALID_PRIM_IDX)
+	{
+		colorBuffOut[index * 4 + 0] = (hit.m_uv.x) * 255;
+		colorBuffOut[index * 4 + 1] = (hit.m_uv.y) * 255;
+		colorBuffOut[index * 4 + 2] = (1 - hit.m_uv.x - hit.m_uv.y) * 255;
+		colorBuffOut[index * 4 + 3] = 255;
+	}
+}
