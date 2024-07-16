@@ -397,7 +397,6 @@ int main(int argc, char* argv[])
 				fitBvhNodesKernel.setArgs({ d_bvhNodes.ptr(), d_flags.ptr(), nLeafNodes, nInternalNodes });
 				timer.measure(TimerCodes::BvhBuildTime, [&]() { fitBvhNodesKernel.launch(nLeafNodes); });
 			}
-			OrochiUtils::waitForCompletion();
 		}
 
 #if _DEBUG
@@ -455,13 +454,13 @@ int main(int argc, char* argv[])
 		//CPU traversal 
 		const u32 launchSize = width * height;
 		std::vector<HitInfo> h_hitInfo;
-		u8* dst = (u8*)malloc(launchSize * 4);
+		u8* colorBuffer = (u8*)malloc(launchSize * 4);
 		memset(dst, 0, launchSize * 4);
 
-		TraversalCPU(debugRayBuff, debugBvhNodes, debugTriangle, t, dst, width, height);
+		TraversalCPU(debugRayBuff, debugBvhNodes, debugTriangle, t, colorBuffer, width, height);
 
-		stbi_write_png("test.png", width, height, 4, dst, width * 4);
-		free(dst);
+		stbi_write_png("test.png", width, height, 4, colorBuffer, width * 4);
+		free(colorBuffer);
 #else
 
 		Oro::GpuMemory<u8> d_colorBuffer(width* height * 4); d_colorBuffer.reset();
@@ -486,6 +485,16 @@ int main(int argc, char* argv[])
 
 		stbi_write_png("test.png", width, height, 4, d_colorBuffer.getData().data(), width * 4);
 #endif 
+
+		std::cout << "==========================Perf Times==========================" << std::endl;
+		std::cout << "CalculateCentroidExtentsTime :" << timer.getTimeRecord(CalculateCentroidExtentsTime) << "ms" << std::endl;
+		std::cout << "CalculateMortonCodesTime :" << timer.getTimeRecord(CalculateMortonCodesTime) << "ms" << std::endl;
+		std::cout << "SortingTime : " << timer.getTimeRecord(SortingTime) << "ms" << std::endl;
+		std::cout << "BvhBuildTime : " << timer.getTimeRecord(BvhBuildTime) << "ms" << std::endl;
+		std::cout << "TraversalTime : " << timer.getTimeRecord(TraversalTime) << "ms" << std::endl;
+		std::cout << "Total Time : " << timer.getTimeRecord(CalculateCentroidExtentsTime) + timer.getTimeRecord(CalculateMortonCodesTime) +
+			timer.getTimeRecord(SortingTime) + timer.getTimeRecord(BvhBuildTime) + timer.getTimeRecord(TraversalTime) << "ms" << std::endl;
+		std::cout << "==============================================================" << std::endl;
 
 		CHECK_ORO(oroCtxDestroy(orochiCtxt));
 	}

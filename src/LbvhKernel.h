@@ -335,8 +335,8 @@ extern "C" __global__ void GenerateRays(const Camera* __restrict__ cam, Ray* __r
 	const int gIdx = blockIdx.x * blockDim.x + threadIdx.x;
 	const int gIdy = blockIdx.y * blockDim.y + threadIdx.y;
 
-	//if (gIdx >= width) return;
-	//if (gIdy >= height) return;
+	if (gIdx >= width) return;
+	if (gIdy >= height) return;
 
 	bool isMultiSamples = false;
 	float  fov = cam->m_fov;
@@ -363,7 +363,7 @@ extern "C" __global__ void GenerateRays(const Camera* __restrict__ cam, Ray* __r
 	}
 }
 
-extern "C" __global__ void BvhTraversal(const  Ray* raysBuff, const  Triangle* primitives, const LbvhNode* bvhNodes, Transformation* tr,  u8* colorBuffOut, const u32 width, const u32 height)
+extern "C" __global__ void BvhTraversal(const  Ray* __restrict__ raysBuff, const  Triangle* __restrict__ primitives, const LbvhNode* __restrict__ bvhNodes, const Transformation* __restrict__ tr,  u8* __restrict__ colorBuffOut, const u32 width, const u32 height)
 {
 	const int gIdx = blockIdx.x * blockDim.x + threadIdx.x;
 	const int gIdy = blockIdx.y * blockDim.y + threadIdx.y;
