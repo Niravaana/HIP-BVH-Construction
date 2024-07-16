@@ -7,11 +7,13 @@ Octrees, and k-d Trees](https://research.nvidia.com/sites/default/files/publicat
 
 Timings for cornell Box(32 triangles) on RX6800 AMD
 
-==========================Perf Times==========================
-CalculateCentroidExtentsTime :0.016ms
-CalculateMortonCodesTime :0.0102ms
-SortingTime : 0.3452ms
-BvhBuildTime : 0.5516ms
-TraversalTime : 0.6466ms
-Total Time : 1.5696ms
-==============================================================
+-----------------------Perf Times----------------------------
+
+CalculateCentroidExtentsTime :0.0072ms
+CalculateMortonCodesTime :0.009ms
+SortingTime : 0.3453ms
+BvhBuildTime : 0.5497ms
+TraversalTime : 0.6379ms
+Total Time : 1.5491ms
+
+-------------------------------------------------------------
