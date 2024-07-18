@@ -9,7 +9,7 @@ Timings for cornell Box(32 triangles) on RX6800 AMD
 
 -----------------------Perf Times----------------------------
 
-CalculateCentroidExtentsTime :0.0138ms
+CalculateSceneExtentsTime :0.0138ms
 
 CalculateMortonCodesTime :0.0094ms
 
