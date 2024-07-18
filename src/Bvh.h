@@ -1,18 +1,40 @@
 #pragma once
-#include "Kernel.h"
+#include <src/Kernel.h>
+#include <src/Context.h>
+#include <src/Timer.h>
+#include <src/Common.h>
+#include <dependencies/Orochi/Orochi/OrochiUtils.h>
+#include <dependencies/Orochi/Orochi/GpuMemory.h>
 #include <vector>
 
 namespace BvhConstruction
 {
-	enum class BvhBuildType
+	enum TimerCodes
 	{
-		BvhBuiltTypeLBVH,
-		BvhBuiltTypeSBVH,
+		CalculateCentroidExtentsTime,
+		CalculateMortonCodesTime,
+		SortingTime,
+		BvhBuildTime,
+		TraversalTime
 	};
 
-	class Bvh
+	class LBVH
 	{
 	public:
-		void build(std::vector<Triangle>& primitives, const BvhBuildType buildType);
+		void build(Context& context, std::vector<Triangle>& primitives);
+		
+		void traverseBvh(Context& context);
+
+		Oro::GpuMemory<Triangle> d_triangleBuff;
+		Oro::GpuMemory<Aabb> d_triangleAabb;
+		Oro::GpuMemory<Aabb> d_sceneExtents;
+		Oro::GpuMemory<u32> d_mortonCodeKeys;
+		Oro::GpuMemory<u32> d_mortonCodeValues;
+		Oro::GpuMemory<u32> d_sortedMortonCodeKeys;
+		Oro::GpuMemory<u32> d_sortedMortonCodeValues;
+		Oro::GpuMemory<LbvhNode> d_bvhNodes;
+		Oro::GpuMemory<u32> d_flags;
+		Timer m_timer;
 	};
+
 }
