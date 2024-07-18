@@ -22,7 +22,6 @@
 
 #include <math.h>
 
-
 namespace BvhConstruction
 {
 	using u32 = uint32_t;

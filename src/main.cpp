@@ -11,6 +11,7 @@
 #include <iostream>
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
+#include "Bvh.h"
 
 using namespace BvhConstruction;
 
@@ -260,8 +261,12 @@ int main(int argc, char* argv[])
 		oroCtx		orochiCtxt;
 		Timer timer;
 		
+		Bvh bvh;
+
 		std::vector<Triangle> triangles;
 		loadScene("../src/meshes/cornellbox/cornellbox.obj", "../src/meshes/cornellbox/", triangles);
+
+		bvh.build(triangles, BvhBuildType::BvhBuiltTypeLBVH);
 
 		CHECK_ORO((oroError)oroInitialize((oroApi)(ORO_API_HIP), 0));
 		CHECK_ORO(oroInit(0));
