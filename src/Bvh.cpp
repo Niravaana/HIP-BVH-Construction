@@ -374,9 +374,9 @@ void SahBvh::build(Context& context, std::vector<Triangle>& primitives)
 
 		if (t.m_end - t.m_start == 1)
 		{
-
+			node.m_aabb = primRefs[t.m_start].m_aabb;
 			node.m_firstChildIdx = t.m_start;
-			node.m_primCount = t.m_end = t.m_start;
+			node.m_primCount = t.m_end - t.m_start;
 			continue;
 		}
 
