@@ -5,6 +5,7 @@
 #include <dependencies/stbi/stb_image.h>
 #include <ParallelPrimitives/RadixSort.h>
 #include <iostream>
+#include <queue>
 
 using namespace BvhConstruction;
 
@@ -317,4 +318,88 @@ void LBVH::traverseBvh(Context& context)
 	std::cout << "Total Time : " << m_timer.getTimeRecord(CalculateCentroidExtentsTime) + m_timer.getTimeRecord(CalculateMortonCodesTime) +
 		m_timer.getTimeRecord(SortingTime) + m_timer.getTimeRecord(BvhBuildTime) + m_timer.getTimeRecord(TraversalTime) << "ms" << std::endl;
 	std::cout << "==============================================================" << std::endl;
+}
+
+void SahBvh::build(Context& context, std::vector<Triangle>& primitives)
+{
+	struct PrimitveRef
+	{
+		Aabb m_aabb; //world space aabb
+		size_t m_primId;
+	};
+
+	Transformation t;
+	t.m_translation = float3{ 0.0f, 0.0f, -3.0f };
+	t.m_scale = float3{ 1.0f, 1.0f, 1.0f };
+	t.m_quat = qtGetIdentity();
+
+	std::vector<PrimitveRef> primRefs;
+
+	for (size_t i = 0; i < primitives.size(); i++)
+	{
+		Aabb aabb;
+		Triangle& triangle = primitives[i];
+		float3 tV0 = transform(triangle.v1, t.m_scale, t.m_quat, t.m_translation);
+		float3 tV1 = transform(triangle.v2, t.m_scale, t.m_quat, t.m_translation);
+		float3 tV2 = transform(triangle.v3, t.m_scale, t.m_quat, t.m_translation);
+
+		aabb.grow(tV0); aabb.grow(tV1); aabb.grow(tV2);
+		primRefs.push_back({ aabb, i });
+	}
+
+	u32 primCount = primitives.size();
+	m_bvhNodes.resize((2 * primCount - 1) + primCount);
+
+	std::queue<Task> taskQueue;
+	Task root = {0,  0, primitives.size() };
+	taskQueue.push(root);
+
+	m_bvhNodes.emplace_back();
+	SahBvhNode& rootNode = m_bvhNodes[m_bvhNodes.size()];
+	rootNode.m_firstChildIdx = 0;
+	rootNode.m_primCount = 0;
+
+	while (!taskQueue.empty())
+	{
+		Task t = taskQueue.back(); taskQueue.pop();
+		SahBvhNode& node = m_bvhNodes[t.m_nodeIdx];
+
+		if (t.m_end - t.m_start == 1)
+		{
+
+			node.m_firstChildIdx = t.m_start;
+			node.m_primCount = t.m_end = t.m_start;
+			continue;
+		}
+
+		Aabb nodeAabb;
+		for (size_t i = t.m_start; i < t.m_end; i++)
+		{
+			nodeAabb.grow(primRefs[i].m_aabb);
+		}
+		node.m_aabb = nodeAabb;
+
+		m_bvhNodes.emplace_back();
+		node.m_firstChildIdx = m_bvhNodes.size();
+		node.m_primCount = 0;
+
+		SahBvhNode& leftNode = m_bvhNodes[node.m_firstChildIdx];
+		m_bvhNodes.emplace_back();
+		SahBvhNode& rightNode = m_bvhNodes[node.m_firstChildIdx + 1];
+
+		u32 split = 0;
+		//Find split position
+		//For all prims between start and end divide them in bins and find SAH
+		//based on SAH find best split pos
+
+		Task leftTask = {node.m_firstChildIdx, t.m_start, split };
+		Task rightTask = { node.m_firstChildIdx + 1, split + 1, t.m_end };
+
+		taskQueue.push(leftTask);
+		taskQueue.push(rightTask);
+	}
+}
+
+void SahBvh::traverseBvh(Context& context)
+{
 }

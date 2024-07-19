@@ -37,4 +37,27 @@ namespace BvhConstruction
 		Timer m_timer;
 	};
 
+	struct SahBvhNode
+	{
+		Aabb m_aabb;
+		u32 m_firstChildIdx; //leftChildIndx = m_firstChildIdx and rightChildIndx = m_firstChildIdx + 1
+		u32 m_primCount; //Internal nodes this is 0 and for leaf for now its 1
+	};
+
+	struct Task
+	{
+		u32 m_nodeIdx;
+		u32 m_start;
+		u32 m_end;
+	};
+
+	class SahBvh
+	{
+	public:
+		void build(Context& context, std::vector<Triangle>& primitives);
+
+		void traverseBvh(Context& context);
+
+		std::vector<SahBvhNode> m_bvhNodes;
+	};
 }
