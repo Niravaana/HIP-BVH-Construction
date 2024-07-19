@@ -40,8 +40,8 @@ namespace BvhConstruction
 	struct SahBvhNode
 	{
 		Aabb m_aabb;
-		u32 m_firstChildIdx; //leftChildIndx = m_firstChildIdx and rightChildIndx = m_firstChildIdx + 1
-		u32 m_primCount; //Internal nodes this is 0 and for leaf for now its 1
+		u32 m_firstChildIdx = 0; //leftChildIndx = m_firstChildIdx and rightChildIndx = m_firstChildIdx + 1
+		u32 m_primCount = 0; //Internal nodes this is 0 and for leaf for now its 1
 	};
 
 	struct Task

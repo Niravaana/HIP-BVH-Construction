@@ -296,7 +296,7 @@ DEVICE INLINE float atomicMaxFloat(float* addr, float value)
 			return 2 * (ext.x * ext.y + ext.x * ext.z + ext.y * ext.z);
 		}
 
-		HOST_DEVICE float3 offset(const float3& p)
+		HOST_DEVICE float3 offset(const float3& p) const
 		{
 			float3 o = p - m_min;
 			if (m_max.x > m_min.x) o.x /= m_max.x - m_min.x;

@@ -360,14 +360,16 @@ void SahBvh::build(Context& context, std::vector<Triangle>& primitives)
 	Task root = {0,  0, primitives.size() - 1 };
 	taskQueue.push(root);
 
-	m_bvhNodes.emplace_back();
-	SahBvhNode& rootNode = m_bvhNodes[m_bvhNodes.size() - 1];
+	u32 bvhNodeIdx = 0;
+	m_bvhNodes.resize((2 * primCount - 1) + primCount);
+
+	SahBvhNode& rootNode = m_bvhNodes[bvhNodeIdx++];
 	rootNode.m_firstChildIdx = 0;
 	rootNode.m_primCount = 0;
 
 	while (!taskQueue.empty())
 	{
-		Task t = taskQueue.back(); taskQueue.pop();
+		Task t = taskQueue.front(); taskQueue.pop();
 		SahBvhNode& node = m_bvhNodes[t.m_nodeIdx];
 
 		if (t.m_end - t.m_start == 1)
@@ -386,72 +388,145 @@ void SahBvh::build(Context& context, std::vector<Triangle>& primitives)
 		node.m_aabb = nodeAabb;
 		int dim = nodeAabb.maximumExtentDim();
 
-		m_bvhNodes.emplace_back();
-		node.m_firstChildIdx = m_bvhNodes.size() - 1;
+		node.m_firstChildIdx = bvhNodeIdx++;
 		node.m_primCount = 0;
+		bvhNodeIdx++;// reserve for right child
 
-		SahBvhNode& leftNode = m_bvhNodes[node.m_firstChildIdx];
-		m_bvhNodes.emplace_back();
-		SahBvhNode& rightNode = m_bvhNodes[node.m_firstChildIdx + 1];
+		u32 split = 0;
 
-		Buckets buckets[nBuckets];
-		for (size_t i = t.m_start; i < t.m_end; i++)
+		if (t.m_end - t.m_start <= 2)
 		{
-			float centroidDim = 0.0f;
-			if(dim == 0) centroidDim = nodeAabb.offset(primRefs[i].m_aabb.center()).x;
-			if(dim == 1) centroidDim = nodeAabb.offset(primRefs[i].m_aabb.center()).y;
-			if(dim == 2) centroidDim = nodeAabb.offset(primRefs[i].m_aabb.center()).z; 
-			u32 b = nBuckets * centroidDim;
+			split = (t.m_start + t.m_end) / 2;
+			std::nth_element(&primRefs[t.m_start], &primRefs[split],
+				&primRefs[t.m_end],
+				[dim](const PrimitveRef& a,
+					const PrimitveRef& b) {
 
-			buckets[b].m_nPrims++;
-			buckets[b].m_aabb.grow(primRefs[i].m_aabb);
+						float centroidDimA = 0.0f; float centroidDimB = 0.0f;
+						if (dim == 0) centroidDimA = a.m_aabb.center().x;
+						if (dim == 1) centroidDimA = a.m_aabb.center().y;
+						if (dim == 2) centroidDimA = a.m_aabb.center().z;
+
+						if (dim == 0) centroidDimB = b.m_aabb.center().x;
+						if (dim == 1) centroidDimB = b.m_aabb.center().y;
+						if (dim == 2) centroidDimB = b.m_aabb.center().z;
+
+						return centroidDimA < centroidDimB;
+				});
 		}
-
-		std::vector<float> cost(nBuckets, FltMax);
-		for (size_t b = 0; b < nBuckets; b++)
+		else
 		{
-			Aabb leftHalf, rightHalf;
-			int leftPrimsCount = 0, rightPrimsCount = 0;
-
-			for (size_t j = 0; j <= b; j++)
+			Buckets buckets[nBuckets];
+			for (size_t i = t.m_start; i < t.m_end; i++)
 			{
-				if (buckets[j].m_nPrims == 0) continue;
-				leftHalf.grow(buckets[j].m_aabb);
-				leftPrimsCount += buckets[j].m_nPrims;
+				float centroidDim = 0.0f;
+				if (dim == 0) centroidDim = nodeAabb.offset(primRefs[i].m_aabb.center()).x;
+				if (dim == 1) centroidDim = nodeAabb.offset(primRefs[i].m_aabb.center()).y;
+				if (dim == 2) centroidDim = nodeAabb.offset(primRefs[i].m_aabb.center()).z;
+				u32 b = nBuckets * centroidDim;
+
+				buckets[b].m_nPrims++;
+				buckets[b].m_aabb.grow(primRefs[i].m_aabb);
 			}
 
-			for (size_t j = b + 1; j < nBuckets; j++)
+			std::vector<float> cost(nBuckets, FltMax);
+			for (size_t b = 0; b < nBuckets; b++)
 			{
-				if (buckets[j].m_nPrims == 0) continue;
-				rightHalf.grow(buckets[j].m_aabb);
-				rightPrimsCount += buckets[j].m_nPrims;
+				Aabb leftHalf, rightHalf;
+				int leftPrimsCount = 0, rightPrimsCount = 0;
+
+				for (size_t j = 0; j <= b; j++)
+				{
+					if (buckets[j].m_nPrims == 0) continue;
+					leftHalf.grow(buckets[j].m_aabb);
+					leftPrimsCount += buckets[j].m_nPrims;
+				}
+
+				for (size_t j = b + 1; j < nBuckets; j++)
+				{
+					if (buckets[j].m_nPrims == 0) continue;
+					rightHalf.grow(buckets[j].m_aabb);
+					rightPrimsCount += buckets[j].m_nPrims;
+				}
+
+				float leftSahCost = (leftPrimsCount == 0) ? 0.0f : leftPrimsCount * leftHalf.area();
+				float rightSahCost = (rightPrimsCount == 0) ? 0.0f : rightPrimsCount * rightHalf.area();
+				float totalSahCost = (leftPrimsCount + rightPrimsCount) == 0 ? 0.0f : ((leftSahCost + rightSahCost) / nodeAabb.area());
+				cost[b] = (totalSahCost == 0.0f) ? FltMax : 0.125f + totalSahCost;
 			}
 
-			float leftSahCost = (leftPrimsCount == 0) ? 0.0f : leftPrimsCount * leftHalf.area();
-			float rightSahCost = (rightPrimsCount == 0) ? 0.0f : rightPrimsCount * rightHalf.area();
-			float totalSahCost = (leftPrimsCount + rightPrimsCount) == 0 ? 0.0f : ((leftSahCost + rightSahCost) / nodeAabb.area());
-			cost[b] = (totalSahCost == 0.0f) ? FltMax :  0.125f + totalSahCost;
-		}
+			float minCost = cost[0];
+			int splitBucket = 0;
 
-		float minCost = cost[0];
-		int splitBucket = 0;
-
-		for (size_t i = 0; i < nBuckets - 1; i++)
-		{
-			if (cost[i] < minCost) {
-				minCost = cost[i];
-				splitBucket = i;
+			for (size_t i = 0; i < nBuckets - 1; i++)
+			{
+				if (cost[i] < minCost) {
+					minCost = cost[i];
+					splitBucket = i;
+				}
 			}
-		}
 
-		u32 split = buckets[splitBucket].m_nPrims - 1;
+			 split = std::partition(&primRefs[t.m_start], &primRefs[t.m_end], [=](const PrimitveRef& pi) {
+				float centroidDim = 0.0f;
+				if (dim == 0) centroidDim = nodeAabb.offset(pi.m_aabb.center()).x;
+				if (dim == 1) centroidDim = nodeAabb.offset(pi.m_aabb.center()).y;
+				if (dim == 2) centroidDim = nodeAabb.offset(pi.m_aabb.center()).z;
+				u32 b = nBuckets * centroidDim;
+				if (b == nBuckets) b = nBuckets - 1;
+				return b <= splitBucket;
+				}) - &primRefs[0];
+
+			 //bucketing failed so lets partition sorting based on nodes centroid
+			 if (split <= t.m_start || split >= t.m_end)
+			 {
+				 float centroidDim = 0.0f;
+				 if (dim == 0) centroidDim = nodeAabb.offset(nodeAabb.center()).x;
+				 if (dim == 1) centroidDim = nodeAabb.offset(nodeAabb.center()).y;
+				 if (dim == 2) centroidDim = nodeAabb.offset(nodeAabb.center()).z;
+
+				 float mid = centroidDim / 2.0f;
+
+				 split = std::partition(
+					 &primRefs[t.m_start], &primRefs[t.m_end],
+					 [dim, mid](const PrimitveRef& pi) {
+						 float centroidDim = 0.0f;
+						 if (dim == 0) centroidDim = pi.m_aabb.center().x;
+						 if (dim == 1) centroidDim = pi.m_aabb.center().y;
+						 if (dim == 2) centroidDim = pi.m_aabb.center().z;
+						 return centroidDim < mid; }) - &primRefs[0];
+			 }
+
+			 //If centroid partition also failed 
+			 if (split <= t.m_start || split >= t.m_end)
+			 {
+				 split = (t.m_start + t.m_end) / 2;
+				 std::nth_element(&primRefs[t.m_start], &primRefs[split],
+					 &primRefs[t.m_end],
+					 [dim](const PrimitveRef& a,
+						 const PrimitveRef& b) {
+
+							 float centroidDimA = 0.0f; float centroidDimB = 0.0f;
+							 if (dim == 0) centroidDimA = a.m_aabb.center().x;
+							 if (dim == 1) centroidDimA = a.m_aabb.center().y;
+							 if (dim == 2) centroidDimA = a.m_aabb.center().z;
+
+							 if (dim == 0) centroidDimB = b.m_aabb.center().x;
+							 if (dim == 1) centroidDimB = b.m_aabb.center().y;
+							 if (dim == 2) centroidDimB = b.m_aabb.center().z;
+
+							 return centroidDimA < centroidDimB;
+					 });
+			 }
+		}
 
 		Task leftTask = {node.m_firstChildIdx, t.m_start, split };
-		Task rightTask = { node.m_firstChildIdx + 1, split + 1, t.m_end };
+		Task rightTask = { node.m_firstChildIdx + 1, split, t.m_end };
 
 		taskQueue.push(leftTask);
 		taskQueue.push(rightTask);
 	}
+
+	std::cout << "Done!!";
 }
 
 void SahBvh::traverseBvh(Context& context)
