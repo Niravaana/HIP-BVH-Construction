@@ -280,10 +280,29 @@ DEVICE INLINE float atomicMaxFloat(float* addr, float value)
 
 		HOST_DEVICE float3 extent() const { return m_max - m_min; }
 
+		HOST_DEVICE int maximumExtentDim() const {
+			float3 d = extent();
+			if (d.x > d.y && d.x > d.z)
+				return 0;
+			else if (d.y > d.z)
+				return 1;
+			else
+				return 2;
+		}
+
 		HOST_DEVICE float area() const
 		{
 			float3 ext = extent();
 			return 2 * (ext.x * ext.y + ext.x * ext.z + ext.y * ext.z);
+		}
+
+		HOST_DEVICE float3 offset(const float3& p)
+		{
+			float3 o = p - m_min;
+			if (m_max.x > m_min.x) o.x /= m_max.x - m_min.x;
+			if (m_max.y > m_min.y) o.y /= m_max.y - m_min.y;
+			if (m_max.z > m_min.z) o.z /= m_max.z - m_min.z;
+			return o;
 		}
 
 		HOST_DEVICE bool valid(void) { return m_min.x <= m_max.x && m_min.y <= m_max.y && m_min.z <= m_max.z; }

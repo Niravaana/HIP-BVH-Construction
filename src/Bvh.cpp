@@ -347,6 +347,13 @@ void SahBvh::build(Context& context, std::vector<Triangle>& primitives)
 		primRefs.push_back({ aabb, i });
 	}
 
+	struct Buckets
+	{
+		int m_nPrims = 0;
+		Aabb m_aabb;
+	};
+	constexpr u32 nBuckets = 12;
+
 	u32 primCount = primitives.size();
 	m_bvhNodes.resize((2 * primCount - 1) + primCount);
 
@@ -378,6 +385,7 @@ void SahBvh::build(Context& context, std::vector<Triangle>& primitives)
 			nodeAabb.grow(primRefs[i].m_aabb);
 		}
 		node.m_aabb = nodeAabb;
+		int dim = nodeAabb.maximumExtentDim();
 
 		m_bvhNodes.emplace_back();
 		node.m_firstChildIdx = m_bvhNodes.size();
@@ -387,10 +395,52 @@ void SahBvh::build(Context& context, std::vector<Triangle>& primitives)
 		m_bvhNodes.emplace_back();
 		SahBvhNode& rightNode = m_bvhNodes[node.m_firstChildIdx + 1];
 
-		u32 split = 0;
-		//Find split position
-		//For all prims between start and end divide them in bins and find SAH
-		//based on SAH find best split pos
+		Buckets buckets[nBuckets];
+		for (size_t i = t.m_start; i < t.m_end; i++)
+		{
+			float centroidDim = 0.0f;
+			if(dim == 0) centroidDim = nodeAabb.offset(primRefs[i].m_aabb.center()).x;
+			if(dim == 1) centroidDim = nodeAabb.offset(primRefs[i].m_aabb.center()).y;
+			if(dim == 2) centroidDim = nodeAabb.offset(primRefs[i].m_aabb.center()).z; 
+			u32 b = nBuckets * centroidDim;
+
+			buckets[b].m_nPrims++;
+			buckets[b].m_aabb.grow(primRefs[i].m_aabb);
+		}
+
+		float cost[nBuckets];
+		for (size_t b = 0; b < nBuckets; b++)
+		{
+			Aabb leftHalf, rightHalf;
+			int leftPrimsCount = 0, rightPrimsCount = 0;
+
+			for (size_t j = 0; j <= b; j++)
+			{
+				leftHalf.grow(buckets[j].m_aabb);
+				leftPrimsCount += buckets[j].m_nPrims;
+			}
+
+			for (size_t j = b + 1; j < nBuckets; j++)
+			{
+				rightHalf.grow(buckets[j].m_aabb);
+				rightPrimsCount += buckets[j].m_nPrims;
+			}
+
+			cost[b] = 0.125f + ((leftPrimsCount * leftHalf.area() + rightPrimsCount * rightHalf.area()) / nodeAabb.area());
+		}
+
+		float minCost = cost[0];
+		int splitBucket = 0;
+
+		for (size_t i = 0; i < nBuckets - 1; i++)
+		{
+			if (cost[i] < minCost) {
+				minCost = cost[i];
+				splitBucket = i;
+			}
+		}
+
+		u32 split = buckets[splitBucket].m_nPrims - 1;
 
 		Task leftTask = {node.m_firstChildIdx, t.m_start, split };
 		Task rightTask = { node.m_firstChildIdx + 1, split + 1, t.m_end };
