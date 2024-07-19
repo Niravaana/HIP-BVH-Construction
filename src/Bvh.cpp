@@ -355,14 +355,13 @@ void SahBvh::build(Context& context, std::vector<Triangle>& primitives)
 	constexpr u32 nBuckets = 12;
 
 	u32 primCount = primitives.size();
-	m_bvhNodes.resize((2 * primCount - 1) + primCount);
 
 	std::queue<Task> taskQueue;
-	Task root = {0,  0, primitives.size() };
+	Task root = {0,  0, primitives.size() - 1 };
 	taskQueue.push(root);
 
 	m_bvhNodes.emplace_back();
-	SahBvhNode& rootNode = m_bvhNodes[m_bvhNodes.size()];
+	SahBvhNode& rootNode = m_bvhNodes[m_bvhNodes.size() - 1];
 	rootNode.m_firstChildIdx = 0;
 	rootNode.m_primCount = 0;
 
@@ -388,7 +387,7 @@ void SahBvh::build(Context& context, std::vector<Triangle>& primitives)
 		int dim = nodeAabb.maximumExtentDim();
 
 		m_bvhNodes.emplace_back();
-		node.m_firstChildIdx = m_bvhNodes.size();
+		node.m_firstChildIdx = m_bvhNodes.size() - 1;
 		node.m_primCount = 0;
 
 		SahBvhNode& leftNode = m_bvhNodes[node.m_firstChildIdx];
@@ -408,7 +407,7 @@ void SahBvh::build(Context& context, std::vector<Triangle>& primitives)
 			buckets[b].m_aabb.grow(primRefs[i].m_aabb);
 		}
 
-		float cost[nBuckets];
+		std::vector<float> cost(nBuckets, FltMax);
 		for (size_t b = 0; b < nBuckets; b++)
 		{
 			Aabb leftHalf, rightHalf;
@@ -416,17 +415,22 @@ void SahBvh::build(Context& context, std::vector<Triangle>& primitives)
 
 			for (size_t j = 0; j <= b; j++)
 			{
+				if (buckets[j].m_nPrims == 0) continue;
 				leftHalf.grow(buckets[j].m_aabb);
 				leftPrimsCount += buckets[j].m_nPrims;
 			}
 
 			for (size_t j = b + 1; j < nBuckets; j++)
 			{
+				if (buckets[j].m_nPrims == 0) continue;
 				rightHalf.grow(buckets[j].m_aabb);
 				rightPrimsCount += buckets[j].m_nPrims;
 			}
 
-			cost[b] = 0.125f + ((leftPrimsCount * leftHalf.area() + rightPrimsCount * rightHalf.area()) / nodeAabb.area());
+			float leftSahCost = (leftPrimsCount == 0) ? 0.0f : leftPrimsCount * leftHalf.area();
+			float rightSahCost = (rightPrimsCount == 0) ? 0.0f : rightPrimsCount * rightHalf.area();
+			float totalSahCost = (leftPrimsCount + rightPrimsCount) == 0 ? 0.0f : ((leftSahCost + rightSahCost) / nodeAabb.area());
+			cost[b] = (totalSahCost == 0.0f) ? FltMax :  0.125f + totalSahCost;
 		}
 
 		float minCost = cost[0];
