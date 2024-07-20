@@ -1,10 +1,10 @@
 # HIP-BVH-Construction
 
-This repo is implementation of different GPU build methods. Following methods are on the roadmap.
+This repo is implementation of different GPU BVH build methods and optimizations. Following methods are on the roadmap.
 
 1. LBVH - Based on research paper [Maximizing Parallelism in the Construction of BVHs,
 Octrees, and k-d Trees](https://research.nvidia.com/sites/default/files/publications/karras2012hpg_paper.pdf) **[DONE]**
-2. Binned SAH Builder - Based on research paper "On fast Construction of SAH-based Bounding Volume Hierarchies, by I. Wald" [CPU implementation in progress]
+2. Binned SAH Builder - Based on research paper "On fast Construction of SAH-based Bounding Volume Hierarchies, by I. Wald" [CPU implementation DONE]
 3. PLOC - Based on research paper "Parallel Locally-Ordered Clustering for Bounding Volume Hierarchy Construction, by D. Meister and J. Bittner" 
 
 # Details on LBVH Implementation 
