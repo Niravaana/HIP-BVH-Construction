@@ -9,9 +9,9 @@ Octrees, and k-d Trees](https://research.nvidia.com/sites/default/files/publicat
 
 # Details on LBVH Implementation 
 
-**Reference Images **
+**Reference Images**
 
-![depth](https://github.com/user-attachments/assets/af76dac1-f4ae-41a6-a5b7-2e90e0062dc6)
+![test](https://github.com/user-attachments/assets/52f37b52-7c81-44e6-b890-e07489f82386)
 
 ![test](https://github.com/user-attachments/assets/7b371357-7ff3-40ba-a214-b410f3bd3fb2)
 
@@ -32,5 +32,23 @@ TraversalTime : 0.3493ms
 Total Time : 1.321ms
 
 -------------------------------------------------------------
+
+**Timings for Bunny Box(150K triangles) on RX6800 AMD**
+
+-----------------------Perf Times----------------------------
+
+CalculateCentroidExtentsTime :0.0642ms
+
+CalculateMortonCodesTime :0.0307ms
+
+SortingTime : 0.6024ms
+
+BvhBuildTime : 1.1857ms
+
+TraversalTime : 1.7819ms
+
+Total Time : 1.883ms
+
+-----------------------------------------------------------
 
 **Todo :** Still need to explore collapsing for LBVH and see its impact on performance, take timings with Bistro like scene and write blog post explaining the method.
