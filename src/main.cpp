@@ -166,10 +166,11 @@ int main(int argc, char* argv[])
 	{
 		Context context;
 		Timer timer;
-		SahBvh bvh;
+		LBVH bvh;
 
 		std::vector<Triangle> triangles;
-		loadScene("../src/meshes/cornellbox/cornellbox.obj", "../src/meshes/cornellbox/", triangles);
+		//loadScene("../src/meshes/cornellbox/cornellbox.obj", "../src/meshes/cornellbox/", triangles);
+		loadScene("../src/meshes/bunny/bunny.obj", "../src/meshes/bunny/", triangles);
 
 		bvh.build(context, triangles);
 		bvh.traverseBvh(context);

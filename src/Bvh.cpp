@@ -9,6 +9,40 @@
 
 using namespace BvhConstruction;
 
+/*
+*  Bunny 
+	Transformation t;
+	t.m_translation = float3{ 0.0f, 0.0f, -3.0f };
+	t.m_scale = float3{ 3.0f, 3.0f, 3.0f };
+	t.m_quat = qtGetIdentity();
+	Oro::GpuMemory<Transformation> d_transformations(1); d_transformations.reset();
+	OrochiUtils::copyHtoD(d_transformations.ptr(), &t, 1);
+
+	//create camera
+	Camera cam;
+	cam.m_eye = float4{ 0.0f, 2.5f, 5.8f, 0.0f };
+	cam.m_quat = qtRotation(float4{ 0.0f, 0.0f, 1.0f, -1.57f });
+	cam.m_fov = 45.0f * Pi / 180.f;
+	cam.m_near = 0.0f;
+	cam.m_far = 100000.0f;
+	Oro::GpuMemory<Camera> d_cam(1); d_cam.reset();
+	OrochiUtils::copyHtoD(d_cam.ptr(), &cam, 1);
+
+* Sponza 
+	Transformation t;
+	t.m_translation = float3{ 0.0f, 0.0f, -3.0f };
+	t.m_scale = float3{ 1.0f, 1.0f, 1.0f };
+	t.m_quat = qtRotation(float4{ 1.0f, 0.0f, 0.0f, 1.57f });
+
+
+	Camera cam;
+	cam.m_eye = float4{ -20.0f, 18.5f, 10.8f, 0.0f };
+	cam.m_quat = qtRotation(float4{ 0.0f, 1.0f, 0.0f, -1.57f });
+	cam.m_fov = 45.0f * Pi / 180.f;
+	cam.m_near = 0.0f;
+	cam.m_far = 100000.0f;
+*/
+
 //For debug purpose
 void TraversalCPU(const std::vector<Ray>& rayBuff, std::vector<LbvhNode> bvhNodes, std::vector<Triangle> primitives, Transformation& t, u8* dst, u32 width, u32 height)
 {
@@ -157,9 +191,9 @@ void TraversalSahBvhCPU(const std::vector<Ray>& rayBuff, std::vector<SahBvhNode>
 
 			if (hit.m_primIdx != INVALID_PRIM_IDX)
 			{
-				dst[index * 4 + 0] = (hit.m_t / 30.0f) * 255;
-				dst[index * 4 + 1] = (hit.m_t / 30.0f) * 255;
-				dst[index * 4 + 2] = (hit.m_t / 30.0f) * 255;
+				dst[index * 4 + 0] = (hit.m_uv.x) * 255;
+				dst[index * 4 + 1] = (hit.m_uv.y) * 255;
+				dst[index * 4 + 2] = (1 - hit.m_uv.x - hit.m_uv.y) * 255;
 				dst[index * 4 + 3] = 255;
 			}
 		}
@@ -306,7 +340,7 @@ void LBVH::traverseBvh(Context& context)
 	//set transformation for the scene (fixed currently for cornell box)
 	Transformation t;
 	t.m_translation = float3{ 0.0f, 0.0f, -3.0f };
-	t.m_scale = float3{ 1.0f, 1.0f, 1.0f };
+	t.m_scale = float3{ 3.0f, 3.0f, 3.0f };
 	t.m_quat = qtGetIdentity();
 	Oro::GpuMemory<Transformation> d_transformations(1); d_transformations.reset();
 	OrochiUtils::copyHtoD(d_transformations.ptr(), &t, 1);
@@ -393,33 +427,18 @@ void LBVH::traverseBvh(Context& context)
 	std::cout << "BvhBuildTime : " << m_timer.getTimeRecord(BvhBuildTime) << "ms" << std::endl;
 	std::cout << "TraversalTime : " << m_timer.getTimeRecord(TraversalTime) << "ms" << std::endl;
 	std::cout << "Total Time : " << m_timer.getTimeRecord(CalculateCentroidExtentsTime) + m_timer.getTimeRecord(CalculateMortonCodesTime) +
-		m_timer.getTimeRecord(SortingTime) + m_timer.getTimeRecord(BvhBuildTime) + m_timer.getTimeRecord(TraversalTime) << "ms" << std::endl;
+		m_timer.getTimeRecord(SortingTime) + m_timer.getTimeRecord(BvhBuildTime) << "ms" << std::endl;
 	std::cout << "==============================================================" << std::endl;
 }
 
 void SahBvh::build(Context& context, std::vector<Triangle>& primitives)
 {
-	struct PrimitveRef
-	{
-		Aabb m_aabb; //world space aabb
-		size_t m_primId;
-	};
-
-	Transformation t;
-	t.m_translation = float3{ 0.0f, 0.0f, -3.0f };
-	t.m_scale = float3{ 1.0f, 1.0f, 1.0f };
-	t.m_quat = qtGetIdentity();
-
 	std::vector<PrimitveRef> primRefs;
 
 	for (size_t i = 0; i < primitives.size(); i++)
 	{
 		Aabb aabb;
 		Triangle& triangle = primitives[i];
-		//float3 tV0 = transform(triangle.v1, t.m_scale, t.m_quat, t.m_translation);
-		//float3 tV1 = transform(triangle.v2, t.m_scale, t.m_quat, t.m_translation);
-		//float3 tV2 = transform(triangle.v3, t.m_scale, t.m_quat, t.m_translation);
-
 		aabb.grow(triangle.v1); aabb.grow(triangle.v2); aabb.grow(triangle.v3);
 		primRefs.push_back({ aabb, i });
 	}
@@ -629,11 +648,10 @@ void SahBvh::build(Context& context, std::vector<Triangle>& primitives)
 
 #endif 
 
-	//Traversal
-	/*Transformation t;
+	Transformation t;
 	t.m_translation = float3{ 0.0f, 0.0f, -3.0f };
-	t.m_scale = float3{ 1.0f, 1.0f, 1.0f };
-	t.m_quat = qtGetIdentity();*/
+	t.m_scale = float3{ 3.0f, 3.0f, 3.0f };
+	t.m_quat = qtGetIdentity();
 	Oro::GpuMemory<Transformation> d_transformations(1); d_transformations.reset();
 	OrochiUtils::copyHtoD(d_transformations.ptr(), &t, 1);
 

@@ -37,6 +37,12 @@ namespace BvhConstruction
 		Timer m_timer;
 	};
 
+	struct PrimitveRef
+	{
+		Aabb m_aabb; //world space aabb
+		size_t m_primId;
+	};
+
 	struct Task
 	{
 		u32 m_nodeIdx;
