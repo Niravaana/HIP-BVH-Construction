@@ -27,9 +27,7 @@ SortingTime : 0.3442ms
 
 BvhBuildTime : 0.6043ms
 
-TraversalTime : 0.3493ms
-
-Total Time : 1.321ms
+Total Time : 0.9ms
 
 -------------------------------------------------------------
 
@@ -45,10 +43,24 @@ SortingTime : 0.6024ms
 
 BvhBuildTime : 1.1857ms
 
-TraversalTime : 1.7819ms
-
 Total Time : 1.883ms
 
 -----------------------------------------------------------
+
+**Timings for Sponza(260K triangles) on RX6800 AMD**
+
+-----------------------Perf Times----------------------------
+
+CalculateCentroidExtentsTime :0.2936ms
+
+CalculateMortonCodesTime :0.147ms
+
+SortingTime : 0.9275ms
+
+BvhBuildTime : 1.8674ms
+
+Total Time : 3.2355ms
+
+-------------------------------------------------------------
 
 **Todo :** Still need to explore collapsing for LBVH and see its impact on performance, take timings with Bistro like scene and write blog post explaining the method.
