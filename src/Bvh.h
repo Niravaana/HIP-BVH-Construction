@@ -37,13 +37,6 @@ namespace BvhConstruction
 		Timer m_timer;
 	};
 
-	struct SahBvhNode
-	{
-		Aabb m_aabb;
-		u32 m_firstChildIdx = 0; //leftChildIndx = m_firstChildIdx and rightChildIndx = m_firstChildIdx + 1
-		u32 m_primCount = 0; //Internal nodes this is 0 and for leaf for now its 1
-	};
-
 	struct Task
 	{
 		u32 m_nodeIdx;
@@ -59,5 +52,6 @@ namespace BvhConstruction
 		void traverseBvh(Context& context);
 
 		std::vector<SahBvhNode> m_bvhNodes;
+		Oro::GpuMemory<SahBvhNode> d_bvhNodes;
 	};
 }

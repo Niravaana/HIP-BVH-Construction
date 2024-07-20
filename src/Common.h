@@ -368,6 +368,20 @@ DEVICE INLINE float atomicMaxFloat(float* addr, float value)
 		}
 	};
 
+
+	struct alignas(32) SahBvhNode
+	{
+		Aabb m_aabb;
+		u32 m_firstChildIdx = 0; //leftChildIndx = m_firstChildIdx and rightChildIndx = m_firstChildIdx + 1
+		u32 m_primCount = 0; //Internal nodes this is 0 and for leaf for now its 1
+
+		static HOST_DEVICE bool isLeafNode(const SahBvhNode& node)
+		{
+			return (node.m_primCount != 0);
+		}
+	};
+
+
 	HOST_DEVICE INLINE Aabb merge(const Aabb lhs, const Aabb rhs)
 	{
 		return  { min(lhs.m_min, rhs.m_min), max(lhs.m_max, rhs.m_max) };

@@ -12,7 +12,6 @@ using namespace BvhConstruction;
 //For debug purpose
 void TraversalCPU(const std::vector<Ray>& rayBuff, std::vector<LbvhNode> bvhNodes, std::vector<Triangle> primitives, Transformation& t, u8* dst, u32 width, u32 height)
 {
-
 	for (int gIdx = 0; gIdx < width; gIdx++)
 	{
 		for (int gIdy = 0; gIdy < height; gIdy++)
@@ -71,6 +70,84 @@ void TraversalCPU(const std::vector<Ray>& rayBuff, std::vector<LbvhNode> bvhNode
 						else
 						{
 							nodeIdx = (hitLeft) ? node.m_leftChildIdx : node.m_rightChildIdx;
+						}
+						continue;
+					}
+				}
+				nodeIdx = stack[--top];
+			}
+
+			if (hit.m_primIdx != INVALID_PRIM_IDX)
+			{
+				dst[index * 4 + 0] = (hit.m_t / 30.0f) * 255;
+				dst[index * 4 + 1] = (hit.m_t / 30.0f) * 255;
+				dst[index * 4 + 2] = (hit.m_t / 30.0f) * 255;
+				dst[index * 4 + 3] = 255;
+			}
+		}
+	}
+}
+
+void TraversalSahBvhCPU(const std::vector<Ray>& rayBuff, std::vector<SahBvhNode> bvhNodes, std::vector<Triangle> primitives, Transformation& t, u8* dst, u32 width, u32 height)
+{
+	for (int gIdx = 0; gIdx < width; gIdx++)
+	{
+		for (int gIdy = 0; gIdy < height; gIdy++)
+		{
+			u32 nodeIdx = 0;
+			u32 top = 0;
+			u32 stack[64];
+			stack[top++] = INVALID_NODE_IDX;
+			HitInfo hit;
+			u32 index = gIdx * width + gIdy;
+
+			Ray ray = rayBuff[index];
+			Ray transformedRay;
+			transformedRay.m_origin = invTransform(ray.m_origin, t.m_scale, t.m_quat, t.m_translation);
+			transformedRay.m_direction = invTransform(ray.m_direction, t.m_scale, t.m_quat, { 0.0f,0.0f,0.0f });
+			float3 invRayDir = 1.0f / transformedRay.m_direction;
+
+			while (nodeIdx != INVALID_NODE_IDX)
+			{
+				const SahBvhNode& node = bvhNodes[nodeIdx];
+
+				if (SahBvhNode::isLeafNode(node))
+				{
+					Triangle& triangle = primitives[node.m_firstChildIdx];
+					float3 tV0 = transform(triangle.v1, t.m_scale, t.m_quat, t.m_translation);
+					float3 tV1 = transform(triangle.v2, t.m_scale, t.m_quat, t.m_translation);
+					float3 tV2 = transform(triangle.v3, t.m_scale, t.m_quat, t.m_translation);
+
+					float4 itr = intersectTriangle(tV0, tV1, tV2, ray.m_origin, ray.m_direction);
+					if (itr.x > 0.0f && itr.y > 0.0f && itr.z > 0.0f && itr.w > 0.0f && itr.w < hit.m_t)
+					{
+						hit.m_primIdx = node.m_firstChildIdx;
+						hit.m_t = itr.w;
+						hit.m_uv = { itr.x, itr.y };
+					}
+				}
+				else
+				{
+					const Aabb left = bvhNodes[node.m_firstChildIdx].m_aabb;
+					const Aabb right = bvhNodes[node.m_firstChildIdx + 1].m_aabb;
+					const float2 t0 = left.intersect(transformedRay.m_origin, invRayDir, hit.m_t);
+					const float2 t1 = right.intersect(transformedRay.m_origin, invRayDir, hit.m_t);
+					const bool hitLeft = (t0.x <= t0.y);
+					const bool hitRight = (t1.x <= t1.y);
+
+					if (hitLeft || hitRight)
+					{
+						if (hitLeft && hitRight)
+						{
+							nodeIdx = (t0.x < t1.x) ? node.m_firstChildIdx : node.m_firstChildIdx + 1;
+							if (top < 64)
+							{
+								stack[top++] = (t0.x < t1.x) ? node.m_firstChildIdx + 1 : node.m_firstChildIdx;
+							}
+						}
+						else
+						{
+							nodeIdx = (hitLeft) ? node.m_firstChildIdx : node.m_firstChildIdx + 1;
 						}
 						continue;
 					}
@@ -278,7 +355,7 @@ void LBVH::traverseBvh(Context& context)
 	const u32 launchSize = width * height;
 	std::vector<HitInfo> h_hitInfo;
 	u8* colorBuffer = (u8*)malloc(launchSize * 4);
-	memset(dst, 0, launchSize * 4);
+	memset(colorBuffer, 0, launchSize * 4);
 
 	TraversalCPU(debugRayBuff, debugBvhNodes, debugTriangle, t, colorBuffer, width, height);
 
@@ -339,11 +416,11 @@ void SahBvh::build(Context& context, std::vector<Triangle>& primitives)
 	{
 		Aabb aabb;
 		Triangle& triangle = primitives[i];
-		float3 tV0 = transform(triangle.v1, t.m_scale, t.m_quat, t.m_translation);
-		float3 tV1 = transform(triangle.v2, t.m_scale, t.m_quat, t.m_translation);
-		float3 tV2 = transform(triangle.v3, t.m_scale, t.m_quat, t.m_translation);
+		//float3 tV0 = transform(triangle.v1, t.m_scale, t.m_quat, t.m_translation);
+		//float3 tV1 = transform(triangle.v2, t.m_scale, t.m_quat, t.m_translation);
+		//float3 tV2 = transform(triangle.v3, t.m_scale, t.m_quat, t.m_translation);
 
-		aabb.grow(tV0); aabb.grow(tV1); aabb.grow(tV2);
+		aabb.grow(triangle.v1); aabb.grow(triangle.v2); aabb.grow(triangle.v3);
 		primRefs.push_back({ aabb, i });
 	}
 
@@ -357,7 +434,7 @@ void SahBvh::build(Context& context, std::vector<Triangle>& primitives)
 	u32 primCount = primitives.size();
 
 	std::queue<Task> taskQueue;
-	Task root = {0,  0, primitives.size() - 1 };
+	Task root = {0,  0, primitives.size() };
 	taskQueue.push(root);
 
 	u32 bvhNodeIdx = 0;
@@ -375,7 +452,7 @@ void SahBvh::build(Context& context, std::vector<Triangle>& primitives)
 		if (t.m_end - t.m_start == 1)
 		{
 			node.m_aabb = primRefs[t.m_start].m_aabb;
-			node.m_firstChildIdx = t.m_start;
+			node.m_firstChildIdx = primRefs[t.m_start].m_primId;
 			node.m_primCount = t.m_end - t.m_start;
 			continue;
 		}
@@ -398,7 +475,7 @@ void SahBvh::build(Context& context, std::vector<Triangle>& primitives)
 		{
 			split = (t.m_start + t.m_end) / 2;
 			std::nth_element(&primRefs[t.m_start], &primRefs[split],
-				&primRefs[t.m_end],
+				&primRefs[t.m_end - 1],
 				[dim](const PrimitveRef& a,
 					const PrimitveRef& b) {
 
@@ -466,13 +543,14 @@ void SahBvh::build(Context& context, std::vector<Triangle>& primitives)
 				}
 			}
 
-			 split = std::partition(&primRefs[t.m_start], &primRefs[t.m_end], [=](const PrimitveRef& pi) {
+			u32 count = 0;
+			 split = std::partition(&primRefs[t.m_start], &primRefs[t.m_end - 1], [&](const PrimitveRef& pi) {
 				float centroidDim = 0.0f;
 				if (dim == 0) centroidDim = nodeAabb.offset(pi.m_aabb.center()).x;
 				if (dim == 1) centroidDim = nodeAabb.offset(pi.m_aabb.center()).y;
 				if (dim == 2) centroidDim = nodeAabb.offset(pi.m_aabb.center()).z;
 				u32 b = nBuckets * centroidDim;
-				if (b == nBuckets) b = nBuckets - 1;
+				if (b == nBuckets) b = nBuckets - 1; count++;
 				return b <= splitBucket;
 				}) - &primRefs[0];
 
@@ -487,7 +565,7 @@ void SahBvh::build(Context& context, std::vector<Triangle>& primitives)
 				 float mid = centroidDim / 2.0f;
 
 				 split = std::partition(
-					 &primRefs[t.m_start], &primRefs[t.m_end],
+					 &primRefs[t.m_start], &primRefs[t.m_end - 1],
 					 [dim, mid](const PrimitveRef& pi) {
 						 float centroidDim = 0.0f;
 						 if (dim == 0) centroidDim = pi.m_aabb.center().x;
@@ -501,7 +579,7 @@ void SahBvh::build(Context& context, std::vector<Triangle>& primitives)
 			 {
 				 split = (t.m_start + t.m_end) / 2;
 				 std::nth_element(&primRefs[t.m_start], &primRefs[split],
-					 &primRefs[t.m_end],
+					 &primRefs[t.m_end - 1],
 					 [dim](const PrimitveRef& a,
 						 const PrimitveRef& b) {
 
@@ -520,15 +598,94 @@ void SahBvh::build(Context& context, std::vector<Triangle>& primitives)
 		}
 
 		Task leftTask = {node.m_firstChildIdx, t.m_start, split };
-		Task rightTask = { node.m_firstChildIdx + 1, split, t.m_end };
+		Task rightTask = { node.m_firstChildIdx + 1, split , t.m_end};
 
 		taskQueue.push(leftTask);
 		taskQueue.push(rightTask);
 	}
+
+// Lets to DFS and collect all primIds should match total primIdx
+#if _DEBUG
+	u32 stack[32];
+	int top = 0;
+	stack[top++] = INVALID_NODE_IDX;
+	u32 nodeIdx = 0;
+	std::vector<u32> primIdxs;
+	
+	while (nodeIdx != INVALID_NODE_IDX)
+	{
+		SahBvhNode node = m_bvhNodes[nodeIdx];
+		if (SahBvhNode::isLeafNode(node))
+		{
+			primIdxs.push_back(node.m_firstChildIdx);
+		}
+		else
+		{
+			stack[top++] = node.m_firstChildIdx;
+			stack[top++] = node.m_firstChildIdx + 1;
+		}
+		nodeIdx = stack[--top];
+	}
+
+#endif 
+
+	//Traversal
+	/*Transformation t;
+	t.m_translation = float3{ 0.0f, 0.0f, -3.0f };
+	t.m_scale = float3{ 1.0f, 1.0f, 1.0f };
+	t.m_quat = qtGetIdentity();*/
+	Oro::GpuMemory<Transformation> d_transformations(1); d_transformations.reset();
+	OrochiUtils::copyHtoD(d_transformations.ptr(), &t, 1);
+
+	//create camera 
+	Camera cam;
+	cam.m_eye = float4{ 0.0f, 2.5f, 5.8f, 0.0f };
+	cam.m_quat = qtRotation(float4{ 0.0f, 0.0f, 1.0f, -1.57f });
+	cam.m_fov = 45.0f * Pi / 180.f;
+	cam.m_near = 0.0f;
+	cam.m_far = 100000.0f;
+	Oro::GpuMemory<Camera> d_cam(1); d_cam.reset();
+	OrochiUtils::copyHtoD(d_cam.ptr(), &cam, 1);
+
+	u32 width = 512;
+	u32 height = 512;
+	Oro::GpuMemory<Ray> d_rayBuffer(width* height); d_rayBuffer.reset();
+
+	//generate rays
+	{
+		const u32 blockSizeX = 8;
+		const u32 blockSizeY = 8;
+		const u32 gridSizeX = (width + blockSizeX - 1) / blockSizeX;
+		const u32 gridSizeY = (height + blockSizeY - 1) / blockSizeY;
+		Kernel generateRaysKernel;
+
+		buildKernelFromSrc(
+			generateRaysKernel,
+			context.m_orochiDevice,
+			"../src/LbvhKernel.h",
+			"GenerateRays",
+			std::nullopt);
+
+		generateRaysKernel.setArgs({ d_cam.ptr(), d_rayBuffer.ptr(), width, height });
+		generateRaysKernel.launch(gridSizeX, gridSizeY, 1, blockSizeX, blockSizeY, 1);
+	}
+
+	const auto debugRayBuff = d_rayBuffer.getData();
+
+	//CPU traversal 
+	const u32 launchSize = width * height;
+	std::vector<HitInfo> h_hitInfo;
+	u8* colorBuffer = (u8*)malloc(launchSize * 4);
+	memset(colorBuffer, 0, launchSize * 4);
+
+	TraversalSahBvhCPU(debugRayBuff, m_bvhNodes, primitives, t, colorBuffer, width, height);
+
+	stbi_write_png("test.png", width, height, 4, colorBuffer, width * 4);
 
 	std::cout << "Done!!";
 }
 
 void SahBvh::traverseBvh(Context& context)
 {
+	
 }
