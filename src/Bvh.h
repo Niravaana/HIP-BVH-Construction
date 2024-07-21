@@ -34,6 +34,7 @@ namespace BvhConstruction
 		Oro::GpuMemory<u32> d_sortedMortonCodeValues;
 		Oro::GpuMemory<LbvhNode> d_bvhNodes;
 		Oro::GpuMemory<u32> d_flags;
+		u32 m_rootNodeIdx = INVALID_NODE_IDX;
 		Timer m_timer;
 	};
 

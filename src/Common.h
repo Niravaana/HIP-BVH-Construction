@@ -368,7 +368,6 @@ DEVICE INLINE float atomicMaxFloat(float* addr, float value)
 		}
 	};
 
-
 	struct alignas(32) SahBvhNode
 	{
 		Aabb m_aabb;

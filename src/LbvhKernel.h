@@ -363,7 +363,7 @@ extern "C" __global__ void GenerateRays(const Camera* __restrict__ cam, Ray* __r
 	}
 }
 
-extern "C" __global__ void BvhTraversal(const  Ray* __restrict__ raysBuff, const  Triangle* __restrict__ primitives, const LbvhNode* __restrict__ bvhNodes, const Transformation* __restrict__ tr,  u8* __restrict__ colorBuffOut, const u32 width, const u32 height)
+extern "C" __global__ void BvhTraversal(const  Ray* __restrict__ raysBuff, const  Triangle* __restrict__ primitives, const LbvhNode* __restrict__ bvhNodes, const Transformation* __restrict__ tr,  u8* __restrict__ colorBuffOut, u32 rootIdx, const u32 width, const u32 height)
 {
 	const int gIdx = blockIdx.x * blockDim.x + threadIdx.x;
 	const int gIdy = blockIdx.y * blockDim.y + threadIdx.y;
@@ -373,7 +373,7 @@ extern "C" __global__ void BvhTraversal(const  Ray* __restrict__ raysBuff, const
 
 	u32 index = gIdx * width + gIdy;
 	const Ray ray = raysBuff[index];
-	u32 nodeIdx = 0;
+	u32 nodeIdx = rootIdx;
 	u32 top = 0;
 	u32 stack[64];
 	stack[top++] = INVALID_NODE_IDX;
@@ -440,5 +440,77 @@ extern "C" __global__ void BvhTraversal(const  Ray* __restrict__ raysBuff, const
 		colorBuffOut[index * 4 + 1] = (hit.m_uv.y) * 255;
 		colorBuffOut[index * 4 + 2] = (1 - hit.m_uv.x - hit.m_uv.y) * 255;
 		colorBuffOut[index * 4 + 3] = 255;
+	}
+}
+
+DEVICE uint64_t findHighestDiffBit(const u32* __restrict__ mortonCodes, int i, int j, int n)
+{
+	if (j < 0 || j >= n) return ~0ull;
+	const uint64_t a = (static_cast<uint64_t>(mortonCodes[i]) << 32ull) | i;
+	const uint64_t b = (static_cast<uint64_t>(mortonCodes[j]) << 32ull) | j;
+	return a ^ b;
+}
+
+DEVICE int findParent( 
+	LbvhNode* __restrict__ bvhNodes,
+	uint2* spans,
+	const u32* __restrict__ mortonCodes,
+	u32 currentNodeIdx,
+	int i,
+	int j,
+	int n)
+{
+	if (i == 0 && j == n) return INVALID_NODE_IDX;
+	if (i == 0 || (j != n && findHighestDiffBit(mortonCodes, j - 1, j, n) < findHighestDiffBit(mortonCodes, j - 1, j, n)))
+	{
+		bvhNodes[j - 1].m_leftChildIdx = currentNodeIdx;
+		spans[j - 1].x = i;
+		return j - 1;
+	}
+	else
+	{
+		bvhNodes[i - 1].m_rightChildIdx = currentNodeIdx;
+		spans[i - 1].y = j;
+		return i - 1;
+	}
+}
+
+extern "C" __global__ void BvhBuildAndFit(
+	LbvhNode* __restrict__ bvhNodes,
+	int* __restrict__ bvhNodeCounter,
+	uint2* __restrict__ spans,
+	const u32* __restrict__ mortonCodes,
+	u32 nLeafNodes,
+	u32 nInternalNodes)
+{
+	int gIdx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (gIdx >= nLeafNodes) return;
+
+	int i = gIdx;
+	int j = gIdx + 1;
+
+	int parentIdx = findParent(bvhNodes, spans, mortonCodes, nInternalNodes + gIdx, i, j, nLeafNodes);
+	gIdx = parentIdx;
+
+	while (atomicAdd(&bvhNodeCounter[gIdx], 1) > 0)
+	{
+		__threadfence();
+		
+		LbvhNode& node = bvhNodes[gIdx];
+		uint2 span = spans[gIdx];
+
+		node.m_aabb = merge(bvhNodes[node.m_leftChildIdx].m_aabb, bvhNodes[node.m_rightChildIdx].m_aabb);
+		
+		parentIdx = findParent(bvhNodes, spans, mortonCodes, gIdx, span.x, span.y, nLeafNodes); 
+
+		if (parentIdx == INVALID_NODE_IDX)
+		{
+			bvhNodeCounter[nLeafNodes - 1] = gIdx; //Saving root node;
+			break;
+		}
+
+		gIdx = parentIdx;
+
+		__threadfence();
 	}
 }

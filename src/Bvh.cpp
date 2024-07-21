@@ -7,6 +7,8 @@
 #include <iostream>
 #include <queue>
 
+#define SINGLE_PASS_LBVH 1
+
 using namespace BvhConstruction;
 
 /*
@@ -292,6 +294,8 @@ void BvhConstruction::LBVH::build(Context& context, std::vector<Triangle>& primi
 			m_timer.measure(TimerCodes::BvhBuildTime, [&]() { initBvhNodesKernel.launch(nLeafNodes); });
 		}
 
+
+#ifndef SINGLE_PASS_LBVH
 #if _DEBUG
 		const auto debugNodes = d_bvhNodes.getData();
 #endif
@@ -328,10 +332,30 @@ void BvhConstruction::LBVH::build(Context& context, std::vector<Triangle>& primi
 			fitBvhNodesKernel.setArgs({ d_bvhNodes.ptr(), d_flags.ptr(), nLeafNodes, nInternalNodes });
 			m_timer.measure(TimerCodes::BvhBuildTime, [&]() { fitBvhNodesKernel.launch(nLeafNodes); });
 		}
-	}
 
 #if _DEBUG
-	const auto debugFittedNodes = d_bvhNodes.getData();
+		const auto debugFittedNodes = d_bvhNodes.getData();
+#endif
+#else
+
+		{
+			Oro::GpuMemory<uint2> d_spans(nLeafNodes); d_spans.reset();
+			Oro::GpuMemory<int> d_bvhNodeCounter(nLeafNodes); d_bvhNodeCounter.reset();
+
+			Kernel bvhBuildAndFitKernel;
+
+			buildKernelFromSrc(
+				bvhBuildAndFitKernel,
+				context.m_orochiDevice,
+				"../src/LbvhKernel.h",
+				"BvhBuildAndFit",
+				std::nullopt);
+
+			bvhBuildAndFitKernel.setArgs({ d_bvhNodes.ptr(), d_bvhNodeCounter.ptr(),  d_spans.ptr(), d_sortedMortonCodeKeys.ptr(), nLeafNodes, nInternalNodes });
+			m_timer.measure(TimerCodes::BvhBuildTime, [&]() { bvhBuildAndFitKernel.launch(nLeafNodes); });
+			m_rootNodeIdx = d_bvhNodeCounter.getData()[nLeafNodes - 1];
+		}
+	}
 #endif
 }
 
@@ -383,7 +407,6 @@ void LBVH::traverseBvh(Context& context)
 	//		const auto debugBvhNodes = d_bvhNodes.getData();
 	//#endif
 
-
 #if _CPU																																																						
 		//CPU traversal 
 	const u32 launchSize = width * height;
@@ -413,7 +436,7 @@ void LBVH::traverseBvh(Context& context)
 				"BvhTraversal",
 				std::nullopt);
 
-			traversalKernel.setArgs({ d_rayBuffer.ptr(), d_triangleBuff.ptr(), d_bvhNodes.ptr(), d_transformations.ptr(), d_colorBuffer.ptr(), width, height });
+			traversalKernel.setArgs({ d_rayBuffer.ptr(), d_triangleBuff.ptr(), d_bvhNodes.ptr(), d_transformations.ptr(), d_colorBuffer.ptr(), m_rootNodeIdx, width, height });
 			m_timer.measure(TimerCodes::TraversalTime, [&]() { traversalKernel.launch(gridSizeX, gridSizeY, 1, blockSizeX, blockSizeY, 1); });
 		}
 
