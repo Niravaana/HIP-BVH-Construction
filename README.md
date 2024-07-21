@@ -4,8 +4,14 @@ This repo is implementation of different GPU BVH build methods and optimizations
 
 1. LBVH - Based on research paper [Maximizing Parallelism in the Construction of BVHs,
 Octrees, and k-d Trees](https://research.nvidia.com/sites/default/files/publications/karras2012hpg_paper.pdf) **[DONE]**
-2. Binned SAH Builder - Based on research paper "On fast Construction of SAH-based Bounding Volume Hierarchies, by I. Wald" [CPU implementation DONE]
-3. PLOC - Based on research paper "Parallel Locally-Ordered Clustering for Bounding Volume Hierarchy Construction, by D. Meister and J. Bittner" 
+
+This method builds the tree in top bottom fasion using above paper. We build a hierarchy in top down approach as a first pass and in second pass doing bottom up traversal we fit the tree.
+
+
+3. Binned SAH Builder - Based on research paper "On fast Construction of SAH-based Bounding Volume Hierarchies, by I. Wald" [CPU implementation DONE]
+
+
+4. PLOC - Based on research paper "Parallel Locally-Ordered Clustering for Bounding Volume Hierarchy Construction, by D. Meister and J. Bittner" 
 
 # Details on LBVH Implementation 
 
