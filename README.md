@@ -5,8 +5,9 @@ This repo is implementation of different GPU BVH build methods and optimizations
 1. LBVH - Based on research paper [Maximizing Parallelism in the Construction of BVHs,
 Octrees, and k-d Trees](https://research.nvidia.com/sites/default/files/publications/karras2012hpg_paper.pdf) **[DONE]**
 
-This method builds the tree in top bottom fasion using above paper. We build a hierarchy in top down approach as a first pass and in second pass doing bottom up traversal we fit the tree.
-
+   This method builds the tree in top bottom fasion using above paper. We build a hierarchy in top down approach as a first pass and in second pass doing bottom up traversal we fit the tree.
+   [Single Pass LBVH](https://diglib.eg.org/server/api/core/bitstreams/ad092db2-6aec-4f2c-941d-8687de258f00/content) method improves on vanila method and build and fits heirarchy in one pass.
+          
 
 3. Binned SAH Builder - Based on research paper "On fast Construction of SAH-based Bounding Volume Hierarchies, by I. Wald" [CPU implementation DONE]
 
