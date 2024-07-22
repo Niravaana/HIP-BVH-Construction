@@ -34,8 +34,9 @@ namespace BvhConstruction
 		Oro::GpuMemory<u32> d_sortedMortonCodeValues;
 		Oro::GpuMemory<LbvhNode> d_bvhNodes;
 		Oro::GpuMemory<u32> d_flags;
-		u32 m_rootNodeIdx = INVALID_NODE_IDX;
+		u32 m_rootNodeIdx = 0;
 		Timer m_timer;
+		u32 m_nInternalNodes = 0;
 	};
 
 	struct PrimitveRef

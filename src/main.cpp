@@ -170,7 +170,7 @@ int main(int argc, char* argv[])
 
 		std::vector<Triangle> triangles;
 		//loadScene("../src/meshes/cornellbox/cornellbox.obj", "../src/meshes/cornellbox/", triangles);
-		loadScene("../src/meshes/bunny/bunny.obj", "../src/meshes/bunny/", triangles);
+		loadScene("../src/meshes/sponza/sponza.obj", "../src/sponza/sponza/", triangles);
 
 		bvh.build(context, triangles);
 		bvh.traverseBvh(context);

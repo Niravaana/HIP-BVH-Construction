@@ -8,6 +8,8 @@
 #include <queue>
 
 //#define SINGLE_PASS_LBVH 1
+//#define WHILEWHILE 1
+#define IFIF 1
 
 using namespace BvhConstruction;
 
@@ -278,6 +280,7 @@ void BvhConstruction::LBVH::build(Context& context, std::vector<Triangle>& primi
 
 	const u32 nLeafNodes = primitiveCount;
 	const u32 nInternalNodes = nLeafNodes - 1;
+	m_nInternalNodes = nInternalNodes;
 	d_bvhNodes.resize(nInternalNodes + nLeafNodes);
 	{
 		{
@@ -365,18 +368,20 @@ void LBVH::traverseBvh(Context& context)
 	//set transformation for the scene (fixed currently for cornell box)
 	Transformation t;
 	t.m_translation = float3{ 0.0f, 0.0f, -3.0f };
-	t.m_scale = float3{ 3.0f, 3.0f, 3.0f };
-	t.m_quat = qtGetIdentity();
+	t.m_scale = float3{ 1.0f, 1.0f, 1.0f };
+	t.m_quat = qtRotation(float4{ 1.0f, 0.0f, 0.0f, 1.57f });
+
 	Oro::GpuMemory<Transformation> d_transformations(1); d_transformations.reset();
 	OrochiUtils::copyHtoD(d_transformations.ptr(), &t, 1);
 
 	//create camera 
 	Camera cam;
-	cam.m_eye = float4{ 0.0f, 2.5f, 5.8f, 0.0f };
-	cam.m_quat = qtRotation(float4{ 0.0f, 0.0f, 1.0f, -1.57f });
+	cam.m_eye = float4{ -20.0f, 18.5f, 10.8f, 0.0f };
+	cam.m_quat = qtRotation(float4{ 0.0f, 1.0f, 0.0f, -1.57f });
 	cam.m_fov = 45.0f * Pi / 180.f;
 	cam.m_near = 0.0f;
 	cam.m_far = 100000.0f;
+
 	Oro::GpuMemory<Camera> d_cam(1); d_cam.reset();
 	OrochiUtils::copyHtoD(d_cam.ptr(), &cam, 1);
 
@@ -420,8 +425,10 @@ void LBVH::traverseBvh(Context& context)
 	stbi_write_png("test.png", width, height, 4, colorBuffer, width * 4);
 	free(colorBuffer);
 #else
+	Oro::GpuMemory<u8> d_colorBuffer(width * height * 4); d_colorBuffer.reset();
 
-		Oro::GpuMemory<u8> d_colorBuffer(width* height * 4); d_colorBuffer.reset();
+#if defined IFIF
+	
 		//Traversal kernel
 		{
 			const u32 blockSizeX = 8;
@@ -434,12 +441,34 @@ void LBVH::traverseBvh(Context& context)
 				traversalKernel,
 				context.m_orochiDevice,
 				"../src/LbvhKernel.h",
-				"BvhTraversal",
+				"BvhTraversalifif",
 				std::nullopt);
 
 			traversalKernel.setArgs({ d_rayBuffer.ptr(), d_triangleBuff.ptr(), d_bvhNodes.ptr(), d_transformations.ptr(), d_colorBuffer.ptr(), m_rootNodeIdx, width, height });
 			m_timer.measure(TimerCodes::TraversalTime, [&]() { traversalKernel.launch(gridSizeX, gridSizeY, 1, blockSizeX, blockSizeY, 1); });
 		}
+#elif defined WHILEWHILE
+
+	//Traversal kernel
+		{
+			const u32 blockSizeX = 8;
+			const u32 blockSizeY = 8;
+			const u32 gridSizeX = (width + blockSizeX - 1) / blockSizeX;
+			const u32 gridSizeY = (height + blockSizeY - 1) / blockSizeY;
+			Kernel traversalKernel;
+
+			buildKernelFromSrc(
+				traversalKernel,
+				context.m_orochiDevice,
+				"../src/LbvhKernel.h",
+				"BvhTraversalWhile",
+				std::nullopt);
+
+			traversalKernel.setArgs({ d_rayBuffer.ptr(), d_triangleBuff.ptr(), d_bvhNodes.ptr(), d_transformations.ptr(), d_colorBuffer.ptr(), m_rootNodeIdx, width, height, m_nInternalNodes });
+			m_timer.measure(TimerCodes::TraversalTime, [&]() { traversalKernel.launch(gridSizeX, gridSizeY, 1, blockSizeX, blockSizeY, 1); });
+		}
+
+#endif
 
 		stbi_write_png("test.png", width, height, 4, d_colorBuffer.getData().data(), width * 4);
 #endif 
