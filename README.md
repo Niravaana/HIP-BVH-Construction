@@ -9,12 +9,11 @@ Octrees, and k-d Trees](https://research.nvidia.com/sites/default/files/publicat
    [Single Pass LBVH](https://diglib.eg.org/server/api/core/bitstreams/ad092db2-6aec-4f2c-941d-8687de258f00/content) method improves on vanila method and build and fits heirarchy in one pass.
    You can enable single pass build using define SINGLE_PASS_LBVH.
 
-   Note : Currently the build time for single pass is much higher than two pass, my analysis is, it is due to the way leaf nodes are stored. Currently, I am storing bvh nodes in one array.
-          I store internal nodes followed by the leaf nodes. If we have n number of leafs then we know we will have 2 * n - 1 internal nodes. So we to access leaf node we always
-          offset by nInternalNodes. When traversing the tree as nodes are in global memory this breaks memory coelascing causing the performance degradation. I think If I store leaf and
-          internal nodes in two different array and not access with this offset method the perf will improve but, this is to be done!.
+   Note : Currently the build time for single pass is much higher than two pass, my analysis is, it is due to the way findparent generates the parent node idx. These node indices are very
+   far from each other for neighbouring threads. Because of this global load and store instruction timings are very bad in the trace.I am not sure is it because of my node size (64 bytes) currently.
+   Have to try if node size reduced to 32 bytes improves performance if building in single pass.
              
-2. HPLOC - Based on the research paper [HPLOC](https://meistdan.github.io/publications/hploc/paper.pdf).
+3. HPLOC - Based on the research paper [HPLOC](https://meistdan.github.io/publications/hploc/paper.pdf).
    
    This method is more suited to the GPU programming framework. So instead of trying PLOC we will implement HPLOC. They claim they are faster than PLOC and yet give almost similar tracing performance.
 
