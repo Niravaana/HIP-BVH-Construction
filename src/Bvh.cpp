@@ -7,7 +7,7 @@
 #include <iostream>
 #include <queue>
 
-#define SINGLE_PASS_LBVH 1
+//#define SINGLE_PASS_LBVH 1
 
 using namespace BvhConstruction;
 
@@ -355,8 +355,9 @@ void BvhConstruction::LBVH::build(Context& context, std::vector<Triangle>& primi
 			m_timer.measure(TimerCodes::BvhBuildTime, [&]() { bvhBuildAndFitKernel.launch(nLeafNodes); });
 			m_rootNodeIdx = d_bvhNodeCounter.getData()[nLeafNodes - 1];
 		}
-	}
+
 #endif
+	}
 }
 
 void LBVH::traverseBvh(Context& context)
@@ -729,4 +730,14 @@ void SahBvh::build(Context& context, std::vector<Triangle>& primitives)
 void SahBvh::traverseBvh(Context& context)
 {
 	
+}
+
+void HPloc::build(Context& context, std::vector<Triangle>& primitives)
+{
+
+}
+
+void HPloc::traverseBvh(Context& context)
+{
+
 }

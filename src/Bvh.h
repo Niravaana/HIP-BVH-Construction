@@ -61,4 +61,12 @@ namespace BvhConstruction
 		std::vector<SahBvhNode> m_bvhNodes;
 		Oro::GpuMemory<SahBvhNode> d_bvhNodes;
 	};
+
+	class HPloc
+	{
+	public:
+		void build(Context& context, std::vector<Triangle>& primitives);
+
+		void traverseBvh(Context& context);
+	};
 }
