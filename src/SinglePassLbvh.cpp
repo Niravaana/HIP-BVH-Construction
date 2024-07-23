@@ -271,7 +271,7 @@ void SinglePassLbvh::traverseBvh(Context& context)
 			buildKernelFromSrc(
 				traversalKernel,
 				context.m_orochiDevice,
-				"../src/SinglePassLbvhKernel.h",
+				"../src/TraversalKernel.h",
 				"BvhTraversalifif",
 				std::nullopt);
 
@@ -321,7 +321,7 @@ void SinglePassLbvh::traverseBvh(Context& context)
 			buildKernelFromSrc(
 				traversalKernel,
 				context.m_orochiDevice,
-				"../src/SinglePassLbvhKernel.h",
+				"../src/TraversalKernel.h",
 				"BvhTraversalWhile",
 				std::nullopt);
 

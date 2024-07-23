@@ -407,22 +407,6 @@ DEVICE INLINE float atomicMaxFloat(float* addr, float value)
 			return (node.m_leftChildIdx == INVALID_NODE_IDX && node.m_rightChildIdx == INVALID_NODE_IDX && node.m_primIdx != INVALID_NODE_IDX);
 		}
 	};
-	
-
-	/*
-		leftIdx + 1 is right Idx 
-		leftIdx > numInternalNodes is a leaf node
-	*/
-	struct alignas(32) LbvhNode32
-	{
-		u32 m_parentIdx;
-		union 
-		{
-			u32 m_leftChildIdx; 
-			u32 m_primIdx;
-		};
-		Aabb m_aabb;
-	};
 
 	struct alignas(32) SahBvhNode
 	{
