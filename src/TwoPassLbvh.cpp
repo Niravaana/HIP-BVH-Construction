@@ -7,11 +7,11 @@
 
 //#define WHILEWHILE 1
 #define IFIF 1
-
+#define _CPU 1
 using namespace BvhConstruction;
 
 //For debug purpose
-static void TraversalCPU(const std::vector<Ray>& rayBuff, std::vector<LbvhNode> bvhNodes, std::vector<Triangle> primitives, Transformation& t, u8* dst, u32 width, u32 height)
+static void TraversalCPU(const std::vector<Ray>& rayBuff, std::vector<LbvhNode32> bvhNodes, std::vector<Triangle> primitives, Transformation& t, u8* dst, u32 width, u32 height, u32 nInternalNodes)
 {
 	for (int gIdx = 0; gIdx < width; gIdx++)
 	{
@@ -32,9 +32,9 @@ static void TraversalCPU(const std::vector<Ray>& rayBuff, std::vector<LbvhNode> 
 
 			while (nodeIdx != INVALID_NODE_IDX)
 			{
-				const LbvhNode& node = bvhNodes[nodeIdx];
+				const LbvhNode32& node = bvhNodes[nodeIdx];
 
-				if (LbvhNode::isLeafNode(node))
+				if (nodeIdx >= nInternalNodes)
 				{
 					Triangle& triangle = primitives[node.m_primIdx];
 					float3 tV0 = transform(triangle.v1, t.m_scale, t.m_quat, t.m_translation);
@@ -52,7 +52,7 @@ static void TraversalCPU(const std::vector<Ray>& rayBuff, std::vector<LbvhNode> 
 				else
 				{
 					const Aabb left = bvhNodes[node.m_leftChildIdx].m_aabb;
-					const Aabb right = bvhNodes[node.m_rightChildIdx].m_aabb;
+					const Aabb right = bvhNodes[node.m_leftChildIdx + 1].m_aabb;
 					const float2 t0 = left.intersect(transformedRay.m_origin, invRayDir, hit.m_t);
 					const float2 t1 = right.intersect(transformedRay.m_origin, invRayDir, hit.m_t);
 					const bool hitLeft = (t0.x <= t0.y);
@@ -62,15 +62,15 @@ static void TraversalCPU(const std::vector<Ray>& rayBuff, std::vector<LbvhNode> 
 					{
 						if (hitLeft && hitRight)
 						{
-							nodeIdx = (t0.x < t1.x) ? node.m_leftChildIdx : node.m_rightChildIdx;
+							nodeIdx = (t0.x < t1.x) ? node.m_leftChildIdx : node.m_leftChildIdx + 1;
 							if (top < 64)
 							{
-								stack[top++] = (t0.x < t1.x) ? node.m_rightChildIdx : node.m_leftChildIdx;
+								stack[top++] = (t0.x < t1.x) ? node.m_leftChildIdx + 1 : node.m_leftChildIdx;
 							}
 						}
 						else
 						{
-							nodeIdx = (hitLeft) ? node.m_leftChildIdx : node.m_rightChildIdx;
+							nodeIdx = (hitLeft) ? node.m_leftChildIdx : node.m_leftChildIdx + 1;
 						}
 						continue;
 					}
@@ -232,14 +232,14 @@ void TwoPassLbvh::traverseBvh(Context& context)
 	Transformation t;
 	t.m_translation = float3{ 0.0f, 0.0f, -3.0f };
 	t.m_scale = float3{ 1.0f, 1.0f, 1.0f };
-	t.m_quat = qtRotation(float4{ 1.0f, 0.0f, 0.0f, 1.57f });
+	t.m_quat = qtGetIdentity();
 
 	Oro::GpuMemory<Transformation> d_transformations(1); d_transformations.reset();
 	OrochiUtils::copyHtoD(d_transformations.ptr(), &t, 1);
 
 	//create camera 
 	Camera cam;
-	cam.m_eye = float4{ -20.0f, 18.5f, 10.8f, 0.0f };
+	cam.m_eye = float4{ 0.0f, 2.5f, 5.8f, 0.0f };
 	cam.m_quat = qtRotation(float4{ 0.0f, 1.0f, 0.0f, -1.57f });
 	cam.m_fov = 45.0f * Pi / 180.f;
 	cam.m_near = 0.0f;
@@ -273,12 +273,16 @@ void TwoPassLbvh::traverseBvh(Context& context)
 
 #if _CPU																																																						
 	//CPU traversal 
+	const auto debugRayBuff = d_rayBuffer.getData();
+	const auto debugBvhNodes = d_bvhNodes.getData();
+	const auto debugTriangle = d_triangleBuff.getData();
+
 	const u32 launchSize = width * height;
 	std::vector<HitInfo> h_hitInfo;
 	u8* colorBuffer = (u8*)malloc(launchSize * 4);
 	memset(colorBuffer, 0, launchSize * 4);
 
-	TraversalCPU(debugRayBuff, debugBvhNodes, debugTriangle, t, colorBuffer, width, height);
+	TraversalCPU(debugRayBuff, debugBvhNodes, debugTriangle, t, colorBuffer, width, height, m_nInternalNodes);
 
 	stbi_write_png("test.png", width, height, 4, colorBuffer, width * 4);
 	free(colorBuffer);
@@ -302,7 +306,7 @@ void TwoPassLbvh::traverseBvh(Context& context)
 			"BvhTraversalifif",
 			std::nullopt);
 
-		traversalKernel.setArgs({ d_rayBuffer.ptr(), d_triangleBuff.ptr(), d_bvhNodes.ptr(), d_transformations.ptr(), d_colorBuffer.ptr(), m_rootNodeIdx, width, height });
+		traversalKernel.setArgs({ d_rayBuffer.ptr(), d_triangleBuff.ptr(), d_bvhNodes.ptr(), d_transformations.ptr(), d_colorBuffer.ptr(), m_rootNodeIdx, width, height, m_nInternalNodes });
 		m_timer.measure(TimerCodes::TraversalTime, [&]() { traversalKernel.launch(gridSizeX, gridSizeY, 1, blockSizeX, blockSizeY, 1); });
 	}
 #elif defined WHILEWHILE
