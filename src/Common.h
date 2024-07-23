@@ -22,6 +22,37 @@
 
 #include <math.h>
 
+/*
+*  Bunny
+	Transformation t;
+	t.m_translation = float3{ 0.0f, 0.0f, -3.0f };
+	t.m_scale = float3{ 3.0f, 3.0f, 3.0f };
+	t.m_quat = qtGetIdentity();
+	Oro::GpuMemory<Transformation> d_transformations(1); d_transformations.reset();
+	OrochiUtils::copyHtoD(d_transformations.ptr(), &t, 1);
+
+	Camera cam;
+	cam.m_eye = float4{ 0.0f, 2.5f, 5.8f, 0.0f };
+	cam.m_quat = qtRotation(float4{ 0.0f, 0.0f, 1.0f, -1.57f });
+	cam.m_fov = 45.0f * Pi / 180.f;
+	cam.m_near = 0.0f;
+	cam.m_far = 100000.0f;
+	Oro::GpuMemory<Camera> d_cam(1); d_cam.reset();
+	OrochiUtils::copyHtoD(d_cam.ptr(), &cam, 1);
+
+* Sponza
+	Transformation t;
+	t.m_translation = float3{ 0.0f, 0.0f, -3.0f };
+	t.m_scale = float3{ 1.0f, 1.0f, 1.0f };
+	t.m_quat = qtRotation(float4{ 1.0f, 0.0f, 0.0f, 1.57f });
+
+	Camera cam;
+	cam.m_eye = float4{ -20.0f, 18.5f, 10.8f, 0.0f };
+	cam.m_quat = qtRotation(float4{ 0.0f, 1.0f, 0.0f, -1.57f });
+	cam.m_fov = 45.0f * Pi / 180.f;
+	cam.m_near = 0.0f;
+	cam.m_far = 100000.0f;
+*/
 namespace BvhConstruction
 {
 	using u32 = uint32_t;
@@ -345,6 +376,15 @@ DEVICE INLINE float atomicMaxFloat(float* addr, float value)
 		float3 m_max;
 	};
 
+	enum TimerCodes
+	{
+		CalculateCentroidExtentsTime,
+		CalculateMortonCodesTime,
+		SortingTime,
+		BvhBuildTime,
+		TraversalTime
+	};
+
 	struct alignas(64) Triangle
 	{
 		float3 v1;
@@ -366,6 +406,22 @@ DEVICE INLINE float atomicMaxFloat(float* addr, float value)
 		{
 			return (node.m_leftChildIdx == INVALID_NODE_IDX && node.m_rightChildIdx == INVALID_NODE_IDX && node.m_primIdx != INVALID_NODE_IDX);
 		}
+	};
+	
+
+	/*
+		leftIdx + 1 is right Idx 
+		leftIdx > numInternalNodes is a leaf node
+	*/
+	struct alignas(32) LbvhNode32
+	{
+		u32 m_parentIdx;
+		union 
+		{
+			u32 m_leftChildIdx; 
+			u32 m_primIdx;
+		};
+		Aabb m_aabb;
 	};
 
 	struct alignas(32) SahBvhNode

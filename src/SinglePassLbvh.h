@@ -9,16 +9,7 @@
 
 namespace BvhConstruction
 {
-	enum TimerCodes
-	{
-		CalculateCentroidExtentsTime,
-		CalculateMortonCodesTime,
-		SortingTime,
-		BvhBuildTime,
-		TraversalTime
-	};
-
-	class LBVH
+	class SinglePassLbvh
 	{
 	public:
 		void build(Context& context, std::vector<Triangle>& primitives);
@@ -37,37 +28,5 @@ namespace BvhConstruction
 		u32 m_rootNodeIdx = 0;
 		Timer m_timer;
 		u32 m_nInternalNodes = 0;
-	};
-
-	struct PrimitveRef
-	{
-		Aabb m_aabb; //world space aabb
-		size_t m_primId;
-	};
-
-	struct Task
-	{
-		u32 m_nodeIdx;
-		u32 m_start;
-		u32 m_end;
-	};
-
-	class SahBvh
-	{
-	public:
-		void build(Context& context, std::vector<Triangle>& primitives);
-
-		void traverseBvh(Context& context);
-
-		std::vector<SahBvhNode> m_bvhNodes;
-		Oro::GpuMemory<SahBvhNode> d_bvhNodes;
-	};
-
-	class HPloc
-	{
-	public:
-		void build(Context& context, std::vector<Triangle>& primitives);
-
-		void traverseBvh(Context& context);
 	};
 }

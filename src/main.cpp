@@ -8,7 +8,7 @@
 #include <iostream>
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
-#include "Bvh.h"
+#include "SinglePassLbvh.h"
 
 using namespace BvhConstruction;
 
@@ -166,7 +166,7 @@ int main(int argc, char* argv[])
 	{
 		Context context;
 		Timer timer;
-		LBVH bvh;
+		SinglePassLbvh bvh;
 
 		std::vector<Triangle> triangles;
 		//loadScene("../src/meshes/cornellbox/cornellbox.obj", "../src/meshes/cornellbox/", triangles);
