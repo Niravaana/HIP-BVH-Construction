@@ -56,15 +56,15 @@ Total Time : 0.9ms
 
 -----------------------Perf Times----------------------------
 
-CalculateCentroidExtentsTime :0.0642ms
+CalculateCentroidExtentsTime :0.0128ms
 
-CalculateMortonCodesTime :0.0307ms
+CalculateMortonCodesTime :0.0037ms
 
-SortingTime : 0.6024ms
+SortingTime : 0.2514ms
 
-BvhBuildTime : 1.1857ms
+BvhBuildTime : 0.4983ms
 
-Total Time : 1.883ms
+Total Time : 0.7662ms
 
 -----------------------------------------------------------
 
