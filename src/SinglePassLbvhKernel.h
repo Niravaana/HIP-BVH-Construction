@@ -106,7 +106,7 @@ extern "C" __global__ void BvhBuildAndFit(
 	}
 }
 
-extern "C" __global__ void BvhTraversalifif(const  Ray* __restrict__ raysBuff, const  Triangle* __restrict__ primitives, const LbvhNode* __restrict__ bvhNodes, const Transformation* __restrict__ tr, u8* __restrict__ colorBuffOut, u32 rootIdx, const u32 width, const u32 height)
+extern "C" __global__ void BvhTraversalifif(const  Ray* __restrict__ raysBuff, u32* rayCounter, const  Triangle* __restrict__ primitives, const LbvhNode* __restrict__ bvhNodes, const Transformation* __restrict__ tr, u8* __restrict__ colorBuffOut, u32 rootIdx, const u32 width, const u32 height, const u32 nNodes)
 {
 	const int gIdx = blockIdx.x * blockDim.x + threadIdx.x;
 	const int gIdy = blockIdx.y * blockDim.y + threadIdx.y;
@@ -139,7 +139,7 @@ extern "C" __global__ void BvhTraversalifif(const  Ray* __restrict__ raysBuff, c
 			float3 tV2 = transform(triangle.v3, tr[0].m_scale, tr[0].m_quat, tr[0].m_translation);
 
 			float4 itr = intersectTriangle(tV0, tV1, tV2, ray.m_origin, ray.m_direction);
-
+			rayCounter[index]++;
 			if (itr.x > 0.0f && itr.y > 0.0f && itr.z > 0.0f && itr.w > 0.0f && itr.w < hit.m_t)
 			{
 				hit.m_primIdx = node.m_primIdx;
@@ -151,8 +151,8 @@ extern "C" __global__ void BvhTraversalifif(const  Ray* __restrict__ raysBuff, c
 		{
 			const Aabb left = bvhNodes[node.m_leftChildIdx].m_aabb;
 			const Aabb right = bvhNodes[node.m_rightChildIdx].m_aabb;
-			const float2 t0 = left.intersect(transformedRay.m_origin, invRayDir, hit.m_t);
-			const float2 t1 = right.intersect(transformedRay.m_origin, invRayDir, hit.m_t);
+			const float2 t0 = left.intersect(transformedRay.m_origin, invRayDir, hit.m_t); 
+			const float2 t1 = right.intersect(transformedRay.m_origin, invRayDir, hit.m_t); 
 
 			const bool hitLeft = (t0.x <= t0.y);
 			const bool hitRight = (t1.x <= t1.y);

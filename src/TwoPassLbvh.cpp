@@ -232,7 +232,7 @@ void TwoPassLbvh::traverseBvh(Context& context)
 	Transformation t;
 	t.m_translation = float3{ 0.0f, 0.0f, -3.0f };
 	t.m_scale = float3{ 1.0f, 1.0f, 1.0f };
-	t.m_quat = qtGetIdentity();
+	t.m_quat = qtRotation(float4{ 1.0f, 0.0f, 0.0f, 1.57f });
 
 	Oro::GpuMemory<Transformation> d_transformations(1); d_transformations.reset();
 	OrochiUtils::copyHtoD(d_transformations.ptr(), &t, 1);
@@ -240,7 +240,7 @@ void TwoPassLbvh::traverseBvh(Context& context)
 	//create camera 
 	Camera cam;
 	cam.m_eye = float4{ 0.0f, 2.5f, 5.8f, 0.0f };
-	cam.m_quat = qtRotation(float4{ 0.0f, 1.0f, 0.0f, -1.57f });
+	cam.m_quat = qtRotation(float4{ 0.0f, 0.0f, 1.0f, -1.57f });
 	cam.m_fov = 45.0f * Pi / 180.f;
 	cam.m_near = 0.0f;
 	cam.m_far = 100000.0f;
