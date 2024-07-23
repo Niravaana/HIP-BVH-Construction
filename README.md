@@ -30,6 +30,10 @@ Octrees, and k-d Trees](https://research.nvidia.com/sites/default/files/publicat
 
 ![test](https://github.com/user-attachments/assets/7b371357-7ff3-40ba-a214-b410f3bd3fb2)
 
+Leaf Node Visits 
+
+![leafNodeVisMap](https://github.com/user-attachments/assets/58d626f8-bcc5-4ca9-b350-dcae9d22015c)
+
 # Performance Numbers With LBVH
 
 **Timings for cornell Box(32 triangles) on RX6800 AMD**
