@@ -5,8 +5,8 @@
 #include <iostream>
 #include <queue>
 
-//#define WHILEWHILE 1
-#define IFIF 1
+#define WHILEWHILE 1
+//#define IFIF 1
 #define _CPU 1
 using namespace BvhConstruction;
 
@@ -152,15 +152,16 @@ void TwoPassLbvh::traverseBvh(Context& context)
 	//set transformation for the scene (fixed currently for cornell box)
 	Transformation t;
 	t.m_translation = float3{ 0.0f, 0.0f, -3.0f };
-	t.m_scale = float3{ 3.0f, 3.0f, 3.0f };
-	t.m_quat = qtGetIdentity();
+	t.m_scale = float3{ 1.0f, 1.0f, 1.0f };
+	t.m_quat = qtRotation(float4{ 1.0f, 0.0f, 0.0f, 1.57f });
+
 	Oro::GpuMemory<Transformation> d_transformations(1); d_transformations.reset();
 	OrochiUtils::copyHtoD(d_transformations.ptr(), &t, 1);
 
 	//create camera 
 	Camera cam;
-	cam.m_eye = float4{ 0.0f, 2.5f, 5.8f, 0.0f };
-	cam.m_quat = qtRotation(float4{ 0.0f, 0.0f, 1.0f, -1.57f });
+	cam.m_eye = float4{ -20.0f, 18.5f, 10.8f, 0.0f };
+	cam.m_quat = qtRotation(float4{ 0.0f, 1.0f, 0.0f, -1.57f });
 	cam.m_fov = 45.0f * Pi / 180.f;
 	cam.m_near = 0.0f;
 	cam.m_far = 100000.0f;

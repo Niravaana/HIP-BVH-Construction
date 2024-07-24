@@ -2,6 +2,7 @@
 #include <src/Common.h>
 
 using namespace BvhConstruction;
+#define __SHARED_STACK 1 
 
 extern "C" __global__ void BvhTraversalifif(const  Ray* __restrict__ raysBuff, u32* rayCounter, const  Triangle* __restrict__ primitives, const LbvhNode* __restrict__ bvhNodes, const Transformation* __restrict__ tr, u8* __restrict__ colorBuffOut, u32 rootIdx, const u32 width, const u32 height, const u32 nNodes)
 {
@@ -15,7 +16,17 @@ extern "C" __global__ void BvhTraversalifif(const  Ray* __restrict__ raysBuff, u
 	const Ray ray = raysBuff[index];
 	u32 nodeIdx = rootIdx;
 	u32 top = 0;
-	u32 stack[64];
+	constexpr int STACK_SIZE = 32;
+
+#ifndef __SHARED_STACK
+	u32 stack[STACK_SIZE];
+#else
+	constexpr int WG_SIZE = 64;
+	int lIdx = blockDim.x * threadIdx.y + threadIdx.x;
+	__shared__ uint32_t ldsBuffer[STACK_SIZE * WG_SIZE];
+	u32* stack = &ldsBuffer[STACK_SIZE * lIdx];
+#endif
+
 	stack[top++] = INVALID_NODE_IDX;
 	HitInfo hit;
 
@@ -95,7 +106,17 @@ extern "C" __global__ void BvhTraversalWhile(const  Ray* __restrict__ raysBuff, 
 	const Ray ray = raysBuff[index];
 	u32 nodeIdx = rootIdx;
 	u32 top = 0;
-	u32 stack[32];
+	constexpr int STACK_SIZE = 32;
+
+#ifndef __SHARED_STACK
+	u32 stack[STACK_SIZE];
+#else
+	constexpr int WG_SIZE = 64;
+	int lIdx = blockDim.x * threadIdx.y + threadIdx.x;
+	__shared__ uint32_t ldsBuffer[STACK_SIZE * WG_SIZE];
+	u32* stack = &ldsBuffer[STACK_SIZE * lIdx];
+#endif
+
 	stack[top++] = INVALID_NODE_IDX;
 	HitInfo hit;
 
