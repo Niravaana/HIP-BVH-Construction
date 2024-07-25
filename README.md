@@ -34,6 +34,9 @@ Leaf Node Visits
 
 ![leafNodeVisMap](https://github.com/user-attachments/assets/58d626f8-bcc5-4ca9-b350-dcae9d22015c)
 
+![colorMap](https://github.com/user-attachments/assets/f5234849-bd3d-4af3-aba7-c054f14bed08)
+
+
 # Performance Numbers With LBVH
 
 **Timings for Bunny Box(150K triangles) on RX6800 AMD**
