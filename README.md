@@ -36,35 +36,19 @@ Leaf Node Visits
 
 # Performance Numbers With LBVH
 
-**Timings for cornell Box(32 triangles) on RX6800 AMD**
-
------------------------Perf Times----------------------------
-
-CalculateSceneExtentsTime :0.0138ms
-
-CalculateMortonCodesTime :0.0094ms
-
-SortingTime : 0.3442ms
-
-BvhBuildTime : 0.6043ms
-
-Total Time : 0.9ms
-
--------------------------------------------------------------
-
 **Timings for Bunny Box(150K triangles) on RX6800 AMD**
 
 -----------------------Perf Times----------------------------
 
-CalculateCentroidExtentsTime :0.0128ms
+CalculateCentroidExtentsTime :0.0213ms
 
-CalculateMortonCodesTime :0.0037ms
+CalculateMortonCodesTime :0.0032ms
 
-SortingTime : 0.2514ms
+SortingTime : 0.247ms
 
-BvhBuildTime : 0.4983ms
+BvhBuildTime : 0.3238ms
 
-Total Time : 0.7662ms
+Total Time : 0.5953ms
 
 -----------------------------------------------------------
 
@@ -72,15 +56,15 @@ Total Time : 0.7662ms
 
 -----------------------Perf Times----------------------------
 
-CalculateCentroidExtentsTime :0.0197ms
+CalculateCentroidExtentsTime :0.023ms
 
-CalculateMortonCodesTime :0.0011ms
+CalculateMortonCodesTime :0.0241ms
 
-SortingTime : 0.3397ms
+SortingTime : 0.3357ms
 
-BvhBuildTime : 0.6854ms
+BvhBuildTime : 0.3868ms
 
-Total Time : 1.0459ms
+Total Time : 0.7696ms
 
 -------------------------------------------------------------
 
