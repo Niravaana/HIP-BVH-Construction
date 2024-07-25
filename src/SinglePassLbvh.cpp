@@ -165,6 +165,7 @@ void SinglePassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 	const u32 nInternalNodes = nLeafNodes - 1;
 	m_nInternalNodes = nInternalNodes;
 	d_bvhNodes.resize(nInternalNodes + nLeafNodes);
+
 	{
 		{
 			Kernel initBvhNodesKernel;
@@ -275,7 +276,7 @@ void SinglePassLbvh::traverseBvh(Context& context)
 				"BvhTraversalifif",
 				std::nullopt);
 
-			traversalKernel.setArgs({ d_rayBuffer.ptr(), d_rayCounterBuffer.ptr(), d_triangleBuff.ptr(), d_bvhNodes.ptr(), d_transformations.ptr(), d_colorBuffer.ptr(), m_rootNodeIdx, width, height, m_nInternalNodes * 2 });
+			traversalKernel.setArgs({ d_rayBuffer.ptr(), d_rayCounterBuffer.ptr(), d_triangleBuff.ptr(), d_bvhNodes.ptr(), d_transformations.ptr(), d_colorBuffer.ptr(), m_rootNodeIdx, width, height, m_nInternalNodes});
 			m_timer.measure(TimerCodes::TraversalTime, [&]() { traversalKernel.launch(gridSizeX, gridSizeY, 1, blockSizeX, blockSizeY, 1); });
 		}
 
