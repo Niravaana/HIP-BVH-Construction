@@ -5,8 +5,8 @@
 #include <iostream>
 #include <queue>
 
-#define WHILEWHILE 1
-//#define IFIF 1
+//#define WHILEWHILE 1
+#define IFIF 1
 #define _CPU 1
 using namespace BvhConstruction;
 
@@ -88,6 +88,7 @@ void TwoPassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 	const u32 nInternalNodes = nLeafNodes - 1;
 	m_nInternalNodes = nInternalNodes;
 	d_bvhNodes.resize(nInternalNodes + nLeafNodes);
+	Oro::GpuMemory<u32> d_parentIdx(nInternalNodes + nLeafNodes); d_parentIdx.reset();
 	{
 		{
 			Kernel initBvhNodesKernel;
@@ -99,7 +100,7 @@ void TwoPassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 				"InitBvhNodes",
 				std::nullopt);
 
-			initBvhNodesKernel.setArgs({ d_triangleBuff.ptr(), d_bvhNodes.ptr(), d_sortedMortonCodeValues.ptr(), nInternalNodes, nLeafNodes });
+			initBvhNodesKernel.setArgs({ d_triangleBuff.ptr(), d_bvhNodes.ptr(), d_parentIdx.ptr(), d_sortedMortonCodeValues.ptr(), nInternalNodes, nLeafNodes });
 			m_timer.measure(TimerCodes::BvhBuildTime, [&]() { initBvhNodesKernel.launch(nLeafNodes); });
 		}
 
@@ -117,7 +118,7 @@ void TwoPassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 				"BvhBuild",
 				std::nullopt);
 
-			bvhBuildKernel.setArgs({ d_bvhNodes.ptr(), d_sortedMortonCodeKeys.ptr(), nLeafNodes, nInternalNodes });
+			bvhBuildKernel.setArgs({ d_bvhNodes.ptr(), d_parentIdx.ptr(), d_sortedMortonCodeKeys.ptr(), nLeafNodes, nInternalNodes });
 			m_timer.measure(TimerCodes::BvhBuildTime, [&]() { bvhBuildKernel.launch(nInternalNodes); });
 		}
 
@@ -136,14 +137,9 @@ void TwoPassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 				"FitBvhNodes",
 				std::nullopt);
 
-			fitBvhNodesKernel.setArgs({ d_bvhNodes.ptr(), d_flags.ptr(), nLeafNodes, nInternalNodes });
+			fitBvhNodesKernel.setArgs({ d_bvhNodes.ptr(), d_parentIdx.ptr(), d_flags.ptr(), nLeafNodes, nInternalNodes });
 			m_timer.measure(TimerCodes::BvhBuildTime, [&]() { fitBvhNodesKernel.launch(nLeafNodes); });
 		}
-
-#if _DEBUG
-		const auto debugFittedNodes = d_bvhNodes.getData();
-		printf("Test\n");
-#endif
 	}
 }
 
@@ -210,7 +206,7 @@ void TwoPassLbvh::traverseBvh(Context& context)
 			"BvhTraversalifif",
 			std::nullopt);
 
-		traversalKernel.setArgs({ d_rayBuffer.ptr(), d_rayCounterBuffer.ptr(), d_triangleBuff.ptr(), d_bvhNodes.ptr(), d_transformations.ptr(), d_colorBuffer.ptr(), m_rootNodeIdx, width, height, m_nInternalNodes * 2 });
+		traversalKernel.setArgs({ d_rayBuffer.ptr(), d_rayCounterBuffer.ptr(), d_triangleBuff.ptr(), d_bvhNodes.ptr(), d_transformations.ptr(), d_colorBuffer.ptr(), m_rootNodeIdx, width, height, m_nInternalNodes});
 		m_timer.measure(TimerCodes::TraversalTime, [&]() { traversalKernel.launch(gridSizeX, gridSizeY, 1, blockSizeX, blockSizeY, 1); });
 	}
 

@@ -110,11 +110,14 @@ DEVICE u32 findSplit(const u32* __restrict__ mortonCode, const u32 nLeafNodes, c
 extern "C" __global__ void InitBvhNodes(
 	const Triangle* __restrict__ primitives,
 	LbvhNode* __restrict__ bvhNodes,
+	u32* __restrict__ parentIdxs,
 	const u32* __restrict__ primIdx,
 	const u32 nInternalNodes,
 	const u32 nLeafNodes)
 {
 	unsigned int gIdx = threadIdx.x + blockIdx.x * blockDim.x;
+
+	parentIdxs[gIdx] = INVALID_NODE_IDX;
 
 	if (gIdx < nLeafNodes)
 	{
@@ -123,8 +126,7 @@ extern "C" __global__ void InitBvhNodes(
 		LbvhNode& node = bvhNodes[nodeIdx];
 		node.m_aabb.reset();
 		node.m_aabb.grow(primitives[idx].v1); node.m_aabb.grow(primitives[idx].v2); node.m_aabb.grow(primitives[idx].v3);
-		node.m_primIdx = idx;
-		node.m_leftChildIdx = INVALID_NODE_IDX;
+		node.m_leftChildIdx = idx;
 		node.m_rightChildIdx = INVALID_NODE_IDX;
 	}
 	if (gIdx < nInternalNodes)
@@ -133,12 +135,12 @@ extern "C" __global__ void InitBvhNodes(
 		node.m_aabb.reset();
 		node.m_leftChildIdx = INVALID_NODE_IDX;
 		node.m_rightChildIdx = INVALID_NODE_IDX;
-		node.m_parentIdx = INVALID_NODE_IDX;
 	}
 }
 
 extern "C" __global__ void BvhBuild(
 	LbvhNode* __restrict__ bvhNodes,
+	u32* __restrict__ parentIdxs,
 	const u32* __restrict__ mortonCodes,
 	u32 nLeafNodes,
 	u32 nInternalNodes)
@@ -154,16 +156,15 @@ extern "C" __global__ void BvhBuild(
 	u32 rightChildIdx = (split + 1 == range.y) ? (split + 1 + nInternalNodes) : split + 1;
 	bvhNodes[gIdx].m_leftChildIdx = leftChildIdx;
 	bvhNodes[gIdx].m_rightChildIdx = rightChildIdx;
-	bvhNodes[gIdx].m_primIdx = INVALID_PRIM_IDX;
-	bvhNodes[leftChildIdx].m_parentIdx = gIdx;
-	bvhNodes[rightChildIdx].m_parentIdx = gIdx;
+	parentIdxs[leftChildIdx] = gIdx;
+	parentIdxs[rightChildIdx] = gIdx;
 }
-extern "C" __global__ void FitBvhNodes(LbvhNode* __restrict__ bvhNodes, u32* flags, u32 nLeafNodes, u32 nInternalNodes)
+extern "C" __global__ void FitBvhNodes(LbvhNode* __restrict__ bvhNodes, u32* __restrict__ parentIdxs, u32* flags, u32 nLeafNodes, u32 nInternalNodes)
 {
 	const unsigned int gIdx = threadIdx.x + blockIdx.x * blockDim.x;
 	if (gIdx >= nLeafNodes) return;
 	int idx = nInternalNodes + gIdx;
-	u32 parent = bvhNodes[idx].m_parentIdx;
+	u32 parent = parentIdxs[idx];
 	while (parent != INVALID_NODE_IDX)
 	{
 		if (atomicCAS(&flags[parent], 0, 1) == 0)
@@ -173,7 +174,7 @@ extern "C" __global__ void FitBvhNodes(LbvhNode* __restrict__ bvhNodes, u32* fla
 			u32 leftChildIdx = bvhNodes[parent].m_leftChildIdx;
 			u32 rightChildIdx = bvhNodes[parent].m_rightChildIdx;
 			bvhNodes[parent].m_aabb = merge(bvhNodes[leftChildIdx].m_aabb, bvhNodes[rightChildIdx].m_aabb);
-			parent = bvhNodes[parent].m_parentIdx;
+			parent = parentIdxs[parent];
 		}
 		__threadfence();
 	}

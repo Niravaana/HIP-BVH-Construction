@@ -9,7 +9,7 @@
 using namespace BvhConstruction;
 
 //For debug purpose
-static void TraversalCPU(const std::vector<Ray>& rayBuff, std::vector<LbvhNode> bvhNodes, std::vector<Triangle> primitives, Transformation& t, u8* dst, u32 width, u32 height)
+static void TraversalCPU(const std::vector<Ray>& rayBuff, std::vector<LbvhNode> bvhNodes, std::vector<Triangle> primitives, Transformation& t, u8* dst, u32 width, u32 height, u32 nInternalNode)
 {
 	for (int gIdx = 0; gIdx < width; gIdx++)
 	{
@@ -32,9 +32,9 @@ static void TraversalCPU(const std::vector<Ray>& rayBuff, std::vector<LbvhNode> 
 			{
 				const LbvhNode& node = bvhNodes[nodeIdx];
 
-				if (LbvhNode::isLeafNode(node))
+				if (nodeIdx > nInternalNode)
 				{
-					Triangle& triangle = primitives[node.m_primIdx];
+					Triangle& triangle = primitives[node.m_leftChildIdx];
 					float3 tV0 = transform(triangle.v1, t.m_scale, t.m_quat, t.m_translation);
 					float3 tV1 = transform(triangle.v2, t.m_scale, t.m_quat, t.m_translation);
 					float3 tV2 = transform(triangle.v3, t.m_scale, t.m_quat, t.m_translation);
@@ -42,7 +42,7 @@ static void TraversalCPU(const std::vector<Ray>& rayBuff, std::vector<LbvhNode> 
 					float4 itr = intersectTriangle(tV0, tV1, tV2, ray.m_origin, ray.m_direction);
 					if (itr.x > 0.0f && itr.y > 0.0f && itr.z > 0.0f && itr.w > 0.0f && itr.w < hit.m_t)
 					{
-						hit.m_primIdx = node.m_primIdx;
+						hit.m_primIdx = node.m_leftChildIdx;
 						hit.m_t = itr.w;
 						hit.m_uv = { itr.x, itr.y };
 					}

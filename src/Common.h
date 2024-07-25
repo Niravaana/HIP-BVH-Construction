@@ -392,20 +392,15 @@ DEVICE INLINE float atomicMaxFloat(float* addr, float value)
 		float3 v3;
 	};
 
-	struct alignas(64) LbvhNode
+	struct alignas(32) LbvhNode
 	{
-		u32 m_parentIdx;
-		u32 m_leftChildIdx;
+		/*For leaf leftChildIdx will store prim idx.
+		  Parent will be maintained in a separate buffer.
+		  Leaf node is any node with nodeIdx >= nInternalNodes
+		*/
+		u32 m_leftChildIdx; 
 		u32 m_rightChildIdx;
-		u32 m_primIdx;
 		Aabb m_aabb;
-		float m_pad1;
-		float m_pad2;
-
-		static HOST_DEVICE bool isLeafNode(const LbvhNode& node)
-		{
-			return (node.m_leftChildIdx == INVALID_NODE_IDX && node.m_rightChildIdx == INVALID_NODE_IDX && node.m_primIdx != INVALID_NODE_IDX);
-		}
 	};
 
 	struct alignas(32) SahBvhNode
