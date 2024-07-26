@@ -494,7 +494,7 @@ DEVICE INLINE float atomicMaxFloat(float* addr, float value)
 		return float4{ u, v, w, t } / (dot(normal, rayDir) * 2.0f);
 	}
 
-	struct alignas(64) Ray
+	struct alignas(32) Ray
 	{
 		float3 m_origin;
 		float3 m_direction;
@@ -521,7 +521,7 @@ DEVICE INLINE float atomicMaxFloat(float* addr, float value)
 		float	   m_pad;
 	};
 
-	struct alignas(64) HitInfo
+	struct alignas(32) HitInfo
 	{
 		u32 m_primIdx = INVALID_PRIM_IDX;
 		float m_t = FltMax;
