@@ -91,6 +91,7 @@ void TwoPassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 	const u32 nTotalNodes = nInternalNodes + nLeafNodes;
 	m_nInternalNodes = nInternalNodes;
 	d_bvhNodes.resize(nTotalNodes);
+	Oro::GpuMemory<u32> d_parentIdxs(nTotalNodes);
 	{
 		{
 			Kernel initBvhNodesKernel;
@@ -102,7 +103,7 @@ void TwoPassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 				"InitBvhNodes",
 				std::nullopt);
 
-			initBvhNodesKernel.setArgs({ d_triangleBuff.ptr(), d_bvhNodes.ptr(), d_sortedMortonCodeValues.ptr(), nInternalNodes, nLeafNodes });
+			initBvhNodesKernel.setArgs({ d_triangleBuff.ptr(), d_bvhNodes.ptr(), d_parentIdxs.ptr(), d_sortedMortonCodeValues.ptr(), nLeafNodes, nInternalNodes });
 			m_timer.measure(TimerCodes::BvhBuildTime, [&]() { initBvhNodesKernel.launch(nLeafNodes); });
 		}
 
@@ -120,7 +121,7 @@ void TwoPassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 				"BvhBuild",
 				std::nullopt);
 
-			bvhBuildKernel.setArgs({ d_bvhNodes.ptr(), d_sortedMortonCodeKeys.ptr(), nLeafNodes, nInternalNodes });
+			bvhBuildKernel.setArgs({ d_bvhNodes.ptr(), d_parentIdxs.ptr(), d_sortedMortonCodeKeys.ptr(), nLeafNodes, nInternalNodes });
 			m_timer.measure(TimerCodes::BvhBuildTime, [&]() { bvhBuildKernel.launch(nInternalNodes); });
 		}
 
@@ -139,7 +140,7 @@ void TwoPassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 				"FitBvhNodes",
 				std::nullopt);
 
-			fitBvhNodesKernel.setArgs({ d_bvhNodes.ptr(), d_flags.ptr(), nLeafNodes, nInternalNodes });
+			fitBvhNodesKernel.setArgs({ d_bvhNodes.ptr(), d_parentIdxs.ptr(), d_flags.ptr(), nLeafNodes, nInternalNodes });
 			m_timer.measure(TimerCodes::BvhBuildTime, [&]() { fitBvhNodesKernel.launch(nLeafNodes); });
 		}
 		

@@ -35,7 +35,7 @@ bool Utility::checkLBvhCorrectness(const LbvhNode* bvhNodes, u32 rootIdx, u32 nL
 			LbvhNode node = bvhNodes[nodeIdx];
 			if (nodeIdx >= nInternalNodes)
 			{
-				primIdxs.push_back(node.m_primIdx);
+				primIdxs.push_back(node.m_leftChildIdx);
 			}
 			else
 			{
@@ -81,7 +81,7 @@ bool Utility::checkSahCorrectness(const SahBvhNode* bvhNodes, u32 rootIdx, u32 n
 	return primIdxs.size() == nLeafNodes && uniqueCount == nLeafNodes;
 }
 
-void Utility::TraversalLbvhCPU(const std::vector<Ray>& rayBuff, std::vector<LbvhNode> bvhNodes, std::vector<Triangle> primitives, Transformation& t, u8* dst, u32 width, u32 height)
+void Utility::TraversalLbvhCPU(const std::vector<Ray>& rayBuff, std::vector<LbvhNode> bvhNodes, std::vector<Triangle> primitives, Transformation& t, u8* dst, u32 width, u32 height, u32 nInternalNodes)
 {
 	for (int gIdx = 0; gIdx < width; gIdx++)
 	{
@@ -104,9 +104,9 @@ void Utility::TraversalLbvhCPU(const std::vector<Ray>& rayBuff, std::vector<Lbvh
 			{
 				const LbvhNode& node = bvhNodes[nodeIdx];
 
-				if (LbvhNode::isLeafNode(node))
+				if (nodeIdx >= nInternalNodes)
 				{
-					Triangle& triangle = primitives[node.m_primIdx];
+					Triangle& triangle = primitives[node.m_leftChildIdx];
 					float3 tV0 = transform(triangle.v1, t.m_scale, t.m_quat, t.m_translation);
 					float3 tV1 = transform(triangle.v2, t.m_scale, t.m_quat, t.m_translation);
 					float3 tV2 = transform(triangle.v3, t.m_scale, t.m_quat, t.m_translation);
@@ -114,7 +114,7 @@ void Utility::TraversalLbvhCPU(const std::vector<Ray>& rayBuff, std::vector<Lbvh
 					float4 itr = intersectTriangle(tV0, tV1, tV2, ray.m_origin, ray.m_direction);
 					if (itr.x > 0.0f && itr.y > 0.0f && itr.z > 0.0f && itr.w > 0.0f && itr.w < hit.m_t)
 					{
-						hit.m_primIdx = node.m_primIdx;
+						hit.m_primIdx = node.m_leftChildIdx;
 						hit.m_t = itr.w;
 						hit.m_uv = { itr.x, itr.y };
 					}
@@ -249,15 +249,26 @@ float Utility::calculateLbvhCost(const LbvhNode* bvhNodes, u32 rootIdx, u32 nLea
 	cost += ct; //cost of root node
 	for (int i = 0; i < nLeafNodes + nInternalNodes; i++)
 	{
-		if (bvhNodes[i].m_leftChildIdx != INVALID_NODE_IDX)
+		if (i < nInternalNodes)
 		{
-			u32 leftChild = bvhNodes[i].m_leftChildIdx;
-			cost += ((leftChild >= nInternalNodes) ? ci : ct)* bvhNodes[leftChild].m_aabb.area()* rootInvArea;
+			{
+				u32 leftChild = bvhNodes[i].m_leftChildIdx;
+				if (leftChild < nInternalNodes)
+				{
+					cost += ct * bvhNodes[leftChild].m_aabb.area() * rootInvArea;
+				}
+			}
+			{
+				u32 rightChild = bvhNodes[i].m_rightChildIdx;
+				if (rightChild < nInternalNodes)
+				{
+					cost += ct * bvhNodes[rightChild].m_aabb.area() * rootInvArea;
+				}
+			}
 		}
-		if (bvhNodes[i].m_rightChildIdx != INVALID_NODE_IDX)
+		if (i >= nInternalNodes)
 		{
-			u32 rightChild = bvhNodes[i].m_rightChildIdx;
-			cost += ((rightChild >= nInternalNodes) ? ci : ct) * bvhNodes[rightChild].m_aabb.area() * rootInvArea;
+			cost += ci * bvhNodes[i].m_aabb.area() * rootInvArea;
 		}
 	}
 	

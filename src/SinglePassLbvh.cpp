@@ -139,7 +139,6 @@ void SinglePassLbvh::traverseBvh(Context& context)
 	Oro::GpuMemory<Transformation> d_transformations(1); d_transformations.reset();
 	OrochiUtils::copyHtoD(d_transformations.ptr(), &t, 1);
 
-	//create camera 
 	Camera cam;
 	cam.m_eye = float4{ 0.0f, 2.5f, 5.8f, 0.0f };
 	cam.m_quat = qtRotation(float4{ 0.0f, 0.0f, 1.0f, -1.57f });
@@ -148,6 +147,7 @@ void SinglePassLbvh::traverseBvh(Context& context)
 	cam.m_far = 100000.0f;
 	Oro::GpuMemory<Camera> d_cam(1); d_cam.reset();
 	OrochiUtils::copyHtoD(d_cam.ptr(), &cam, 1);
+
 
 	u32 width = 512;
 	u32 height = 512;
@@ -180,7 +180,7 @@ void SinglePassLbvh::traverseBvh(Context& context)
 	u8* colorBuffer = (u8*)malloc(launchSize * 4);
 	memset(colorBuffer, 0, launchSize * 4);
 
-	Utility::TraversalLbvhCPU(debugRayBuff, debugBvhNodes, debugTriangle, t, colorBuffer, width, height);
+	Utility::TraversalLbvhCPU(debugRayBuff, debugBvhNodes, debugTriangle, t, colorBuffer, width, height, m_nInternalNodes);
 
 	stbi_write_png("test.png", width, height, 4, colorBuffer, width * 4);
 	free(colorBuffer);
@@ -204,7 +204,7 @@ void SinglePassLbvh::traverseBvh(Context& context)
 				"BvhTraversalifif",
 				std::nullopt);
 
-			traversalKernel.setArgs({ d_rayBuffer.ptr(), d_rayCounterBuffer.ptr(), d_triangleBuff.ptr(), d_bvhNodes.ptr(), d_transformations.ptr(), d_colorBuffer.ptr(), m_rootNodeIdx, width, height, m_nInternalNodes * 2 });
+			traversalKernel.setArgs({ d_rayBuffer.ptr(), d_rayCounterBuffer.ptr(), d_triangleBuff.ptr(), d_bvhNodes.ptr(), d_transformations.ptr(), d_colorBuffer.ptr(), m_rootNodeIdx, width, height, m_nInternalNodes });
 			m_timer.measure(TimerCodes::TraversalTime, [&]() { traversalKernel.launch(gridSizeX, gridSizeY, 1, blockSizeX, blockSizeY, 1); });
 		}
 

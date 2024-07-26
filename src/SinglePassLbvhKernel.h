@@ -19,8 +19,7 @@ extern "C" __global__ void InitBvhNodes(
 		LbvhNode& node = bvhNodes[nodeIdx];
 		node.m_aabb.reset();
 		node.m_aabb.grow(primitives[idx].v1); node.m_aabb.grow(primitives[idx].v2); node.m_aabb.grow(primitives[idx].v3);
-		node.m_primIdx = idx;
-		node.m_leftChildIdx = INVALID_NODE_IDX;
+		node.m_leftChildIdx = idx;
 		node.m_rightChildIdx = INVALID_NODE_IDX;
 	}
 
@@ -30,7 +29,6 @@ extern "C" __global__ void InitBvhNodes(
 		node.m_aabb.reset();
 		node.m_leftChildIdx = INVALID_NODE_IDX;
 		node.m_rightChildIdx = INVALID_NODE_IDX;
-		node.m_parentIdx = INVALID_NODE_IDX;
 	}
 }
 

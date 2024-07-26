@@ -4,7 +4,7 @@
 using namespace BvhConstruction;
 #define __SHARED_STACK 1 
 
-extern "C" __global__ void BvhTraversalifif(const  Ray* __restrict__ raysBuff, u32* rayCounter, const  Triangle* __restrict__ primitives, const LbvhNode* __restrict__ bvhNodes, const Transformation* __restrict__ tr, u8* __restrict__ colorBuffOut, u32 rootIdx, const u32 width, const u32 height, const u32 nNodes)
+extern "C" __global__ void BvhTraversalifif(const  Ray* __restrict__ raysBuff, u32* rayCounter, const  Triangle* __restrict__ primitives, const LbvhNode* __restrict__ bvhNodes, const Transformation* __restrict__ tr, u8* __restrict__ colorBuffOut, u32 rootIdx, const u32 width, const u32 height, const u32 nInternalNodes)
 {
 	const int gIdx = blockIdx.x * blockDim.x + threadIdx.x;
 	const int gIdy = blockIdx.y * blockDim.y + threadIdx.y;
@@ -39,9 +39,9 @@ extern "C" __global__ void BvhTraversalifif(const  Ray* __restrict__ raysBuff, u
 	{
 		const LbvhNode& node = bvhNodes[nodeIdx];
 
-		if (LbvhNode::isLeafNode(node))
+		if (nodeIdx >= nInternalNodes)
 		{
-			const Triangle& triangle = primitives[node.m_primIdx];
+			const Triangle& triangle = primitives[node.m_leftChildIdx];
 			float3 tV0 = transform(triangle.v1, tr[0].m_scale, tr[0].m_quat, tr[0].m_translation);
 			float3 tV1 = transform(triangle.v2, tr[0].m_scale, tr[0].m_quat, tr[0].m_translation);
 			float3 tV2 = transform(triangle.v3, tr[0].m_scale, tr[0].m_quat, tr[0].m_translation);
@@ -50,7 +50,7 @@ extern "C" __global__ void BvhTraversalifif(const  Ray* __restrict__ raysBuff, u
 			rayCounter[index]++;
 			if (itr.x > 0.0f && itr.y > 0.0f && itr.z > 0.0f && itr.w > 0.0f && itr.w < hit.m_t)
 			{
-				hit.m_primIdx = node.m_primIdx;
+				hit.m_primIdx = node.m_leftChildIdx;
 				hit.m_t = itr.w;
 				hit.m_uv = { itr.x, itr.y };
 			}
@@ -163,9 +163,9 @@ extern "C" __global__ void BvhTraversalWhile(const  Ray* __restrict__ raysBuff, 
 		{
 			const LbvhNode& node = bvhNodes[nodeIdx];
 
-			if (LbvhNode::isLeafNode(node))
+			if (nodeIdx >= nInternalNodes)
 			{
-				const Triangle& triangle = primitives[node.m_primIdx];
+				const Triangle& triangle = primitives[node.m_leftChildIdx];
 				float3 tV0 = transform(triangle.v1, tr[0].m_scale, tr[0].m_quat, tr[0].m_translation);
 				float3 tV1 = transform(triangle.v2, tr[0].m_scale, tr[0].m_quat, tr[0].m_translation);
 				float3 tV2 = transform(triangle.v3, tr[0].m_scale, tr[0].m_quat, tr[0].m_translation);
@@ -174,7 +174,7 @@ extern "C" __global__ void BvhTraversalWhile(const  Ray* __restrict__ raysBuff, 
 
 				if (itr.x > 0.0f && itr.y > 0.0f && itr.z > 0.0f && itr.w > 0.0f && itr.w < hit.m_t)
 				{
-					hit.m_primIdx = node.m_primIdx;
+					hit.m_primIdx = node.m_leftChildIdx;
 					hit.m_t = itr.w;
 					hit.m_uv = { itr.x, itr.y };
 				}
