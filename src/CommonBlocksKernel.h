@@ -96,9 +96,8 @@ extern "C" __global__ void CalculateMortonCodes(const Aabb* __restrict__ bounds,
 	const unsigned int gIdx = threadIdx.x + blockIdx.x * blockDim.x;
 	if (gIdx >= primCount) return;
 
-	Aabb aabb = bounds[gIdx];
-	float3 centre = (aabb.m_min + aabb.m_max) * 0.5f;
-	float3 extents = float3{ sceneExtents[0].m_max.x - sceneExtents[0].m_min.x, sceneExtents[0].m_max.y - sceneExtents[0].m_min.y, sceneExtents[0].m_max.z - sceneExtents[0].m_min.z };
+	float3 centre = bounds[gIdx].center();
+	float3 extents = sceneExtents[0].extent();
 	float3 normalizedCentroid = (centre - sceneExtents[0].m_min) / extents;
 
 	float	 x = min(max(normalizedCentroid.x * 1024.0f, 0.0f), 1023.0f);

@@ -5,8 +5,8 @@
 #include <iostream>
 #include <queue>
 
-//#define WHILEWHILE 1
-#define IFIF 1
+#define WHILEWHILE 1
+//#define IFIF 1
 #define _CPU 1
 using namespace BvhConstruction;
 
@@ -86,9 +86,9 @@ void TwoPassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 
 	const u32 nLeafNodes = primitiveCount;
 	const u32 nInternalNodes = nLeafNodes - 1;
+	const u32 nTotalNodes = nInternalNodes + nLeafNodes;
 	m_nInternalNodes = nInternalNodes;
-	d_bvhNodes.resize(nInternalNodes + nLeafNodes);
-	Oro::GpuMemory<u32> d_parentIdx(nInternalNodes + nLeafNodes); d_parentIdx.reset();
+	d_bvhNodes.resize(nTotalNodes);
 	{
 		{
 			Kernel initBvhNodesKernel;
@@ -100,7 +100,7 @@ void TwoPassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 				"InitBvhNodes",
 				std::nullopt);
 
-			initBvhNodesKernel.setArgs({ d_triangleBuff.ptr(), d_bvhNodes.ptr(), d_parentIdx.ptr(), d_sortedMortonCodeValues.ptr(), nInternalNodes, nLeafNodes });
+			initBvhNodesKernel.setArgs({ d_triangleBuff.ptr(), d_bvhNodes.ptr(), d_sortedMortonCodeValues.ptr(), nInternalNodes, nLeafNodes });
 			m_timer.measure(TimerCodes::BvhBuildTime, [&]() { initBvhNodesKernel.launch(nLeafNodes); });
 		}
 
@@ -118,7 +118,7 @@ void TwoPassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 				"BvhBuild",
 				std::nullopt);
 
-			bvhBuildKernel.setArgs({ d_bvhNodes.ptr(), d_parentIdx.ptr(), d_sortedMortonCodeKeys.ptr(), nLeafNodes, nInternalNodes });
+			bvhBuildKernel.setArgs({ d_bvhNodes.ptr(), d_sortedMortonCodeKeys.ptr(), nLeafNodes, nInternalNodes });
 			m_timer.measure(TimerCodes::BvhBuildTime, [&]() { bvhBuildKernel.launch(nInternalNodes); });
 		}
 
@@ -126,7 +126,7 @@ void TwoPassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 		const auto debugBuiltNodes = d_bvhNodes.getData();
 #endif
 
-		d_flags.resize(nInternalNodes); d_flags.reset();
+		d_flags.resize(nTotalNodes); d_flags.reset();
 		{
 			Kernel fitBvhNodesKernel;
 
@@ -137,9 +137,77 @@ void TwoPassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 				"FitBvhNodes",
 				std::nullopt);
 
-			fitBvhNodesKernel.setArgs({ d_bvhNodes.ptr(), d_parentIdx.ptr(), d_flags.ptr(), nLeafNodes, nInternalNodes });
+			fitBvhNodesKernel.setArgs({ d_bvhNodes.ptr(), d_flags.ptr(), nLeafNodes, nInternalNodes });
 			m_timer.measure(TimerCodes::BvhBuildTime, [&]() { fitBvhNodesKernel.launch(nLeafNodes); });
 		}
+
+		Aabb rootAabb;
+		std::vector<u32> primIdxsX;
+		rootAabb.reset();
+		for (size_t i = 0; i < nLeafNodes; i++)
+		{
+			rootAabb.grow(debugBuiltNodes[nInternalNodes + i].m_aabb);
+			primIdxsX.push_back(debugBuiltNodes[nInternalNodes + i].m_primIdx);
+		}
+
+#if _DEBUG
+		auto h_bvhNodes = d_bvhNodes.getData();
+		std::vector<u32> primIdxs;
+		{
+			u32 stack[32];
+			int top = 0;
+			stack[top++] = INVALID_NODE_IDX;
+			u32 nodeIdx = 0;
+			
+			const auto test = d_bvhNodes.getData();
+			while (nodeIdx != INVALID_NODE_IDX)
+			{
+				LbvhNode node = debugBuiltNodes[nodeIdx];
+				if (nodeIdx >= nInternalNodes)
+				{
+					if (node.m_primIdx == 97641)
+					{
+						printf("Done");
+					}
+					primIdxs.push_back(node.m_primIdx);
+				}
+				else
+				{
+					if (node.m_leftChildIdx == 123 || node.m_rightChildIdx == 123)
+					{
+						printf("Done");
+					}
+					stack[top++] = node.m_leftChildIdx;
+					stack[top++] = node.m_rightChildIdx;
+				}
+				nodeIdx = stack[--top];
+			}
+			std::sort(primIdxs.begin(), primIdxs.end());
+		}
+
+		{
+			u32 totalNodes = nInternalNodes + nLeafNodes;
+			std::vector<int> h_flags(totalNodes, 0);
+
+			for (int gIdx = 0; gIdx < nInternalNodes; gIdx++)
+			{
+				int idx = nInternalNodes + gIdx;
+				u32 parent = h_bvhNodes[idx].m_parentIdx;
+
+				while (h_flags[parent]++ > 0)
+				{
+					{
+						u32 leftChildIdx = h_bvhNodes[parent].m_leftChildIdx;
+						u32 rightChildIdx = h_bvhNodes[parent].m_rightChildIdx;
+						h_bvhNodes[parent].m_aabb = merge(h_bvhNodes[leftChildIdx].m_aabb, h_bvhNodes[rightChildIdx].m_aabb);
+						parent = h_bvhNodes[parent].m_parentIdx;
+					}
+				}
+			}
+		}
+		
+		printf("Done\n");
+#endif 
 	}
 }
 
@@ -148,15 +216,16 @@ void TwoPassLbvh::traverseBvh(Context& context)
 	//set transformation for the scene (fixed currently for cornell box)
 	Transformation t;
 	t.m_translation = float3{ 0.0f, 0.0f, -3.0f };
-	t.m_scale = float3{ 3.0f, 3.0f, 3.0f };
-	t.m_quat = qtGetIdentity();
+	t.m_scale = float3{ 1.0f, 1.0f, 1.0f };
+	t.m_quat = qtRotation(float4{ 1.0f, 0.0f, 0.0f, 1.57f });
+
 	Oro::GpuMemory<Transformation> d_transformations(1); d_transformations.reset();
 	OrochiUtils::copyHtoD(d_transformations.ptr(), &t, 1);
 
 	//create camera 
 	Camera cam;
-	cam.m_eye = float4{ 0.0f, 2.5f, 5.8f, 0.0f };
-	cam.m_quat = qtRotation(float4{ 0.0f, 0.0f, 1.0f, -1.57f });
+	cam.m_eye = float4{ -20.0f, 18.5f, 10.8f, 0.0f };
+	cam.m_quat = qtRotation(float4{ 0.0f, 1.0f, 0.0f, -1.57f });
 	cam.m_fov = 45.0f * Pi / 180.f;
 	cam.m_near = 0.0f;
 	cam.m_far = 100000.0f;
@@ -205,7 +274,7 @@ void TwoPassLbvh::traverseBvh(Context& context)
 			"BvhTraversalifif",
 			std::nullopt);
 
-		traversalKernel.setArgs({ d_rayBuffer.ptr(), d_rayCounterBuffer.ptr(), d_triangleBuff.ptr(), d_bvhNodes.ptr(), d_transformations.ptr(), d_colorBuffer.ptr(), m_rootNodeIdx, width, height, m_nInternalNodes});
+		traversalKernel.setArgs({ d_rayBuffer.ptr(), d_rayCounterBuffer.ptr(), d_triangleBuff.ptr(), d_bvhNodes.ptr(), d_transformations.ptr(), d_colorBuffer.ptr(), m_rootNodeIdx, width, height, m_nInternalNodes * 2 });
 		m_timer.measure(TimerCodes::TraversalTime, [&]() { traversalKernel.launch(gridSizeX, gridSizeY, 1, blockSizeX, blockSizeY, 1); });
 	}
 
