@@ -32,7 +32,7 @@ Octrees, and k-d Trees](https://research.nvidia.com/sites/default/files/publicat
 
 Leaf Node Visits 
 
-![leafNodeVisMap](https://github.com/user-attachments/assets/58d626f8-bcc5-4ca9-b350-dcae9d22015c)
+![colorMap](https://github.com/user-attachments/assets/929753e0-11e8-4150-8020-054ac80c24f4)
 
 ![colorMap](https://github.com/user-attachments/assets/f5234849-bd3d-4af3-aba7-c054f14bed08)
 
