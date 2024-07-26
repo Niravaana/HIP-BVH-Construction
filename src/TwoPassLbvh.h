@@ -28,5 +28,6 @@ namespace BvhConstruction
 		u32 m_rootNodeIdx = 0;
 		Timer m_timer;
 		u32 m_nInternalNodes = 0;
+		float m_cost = 0.0f;
 	};
 }

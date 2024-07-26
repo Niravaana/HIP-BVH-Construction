@@ -234,3 +234,56 @@ void Utility::TraversalSahBvhCPU(const std::vector<Ray>& rayBuff, std::vector<Sa
 		}
 	}
 }
+
+float Utility::calculateLbvhCost(const LbvhNode* bvhNodes, u32 rootIdx, u32 nLeafNodes, u32 nInternalNodes)
+{
+	u32 nodeIdx = rootIdx;
+	float cost = 0.0f;
+	constexpr float ci = 1.0f;
+	constexpr float ct = 1.0f;
+	constexpr u32 nPrimsPerLeaf = 1;
+	const float rootInvArea = 1.0f / bvhNodes[rootIdx].m_aabb.area();
+
+	cost += ct; //cost of root node
+	for (int i = 0; i < nLeafNodes + nInternalNodes; i++)
+	{
+		if (bvhNodes[i].m_leftChildIdx != INVALID_NODE_IDX)
+		{
+			u32 leftChild = bvhNodes[i].m_leftChildIdx;
+			cost += ((leftChild >= nInternalNodes) ? ci : ct)* bvhNodes[leftChild].m_aabb.area()* rootInvArea;
+		}
+		if (bvhNodes[i].m_rightChildIdx != INVALID_NODE_IDX)
+		{
+			u32 rightChild = bvhNodes[i].m_rightChildIdx;
+			cost += ((rightChild >= nInternalNodes) ? ci : ct) * bvhNodes[rightChild].m_aabb.area() * rootInvArea;
+		}
+	}
+	
+	return cost;
+}
+
+float Utility::calculateBinnedSahBvhCost(const SahBvhNode* bvhNodes, u32 rootIdx, u32 totalNodes)
+{
+	u32 nodeIdx = rootIdx;
+	float cost = 0.0f;
+	constexpr float ci = 1.0f;
+	constexpr float ct = 1.0f;
+	constexpr u32 nPrimsPerLeaf = 1;
+	const float rootInvArea = 1.0f / bvhNodes[rootIdx].m_aabb.area();
+
+	cost += ct; //cost of root node
+	for (int i = 0; i < totalNodes; i++)
+	{
+		if (bvhNodes[i].m_firstChildIdx != INVALID_NODE_IDX)
+		{
+			u32 leftChild = bvhNodes[i].m_firstChildIdx;
+			cost += ((SahBvhNode::isLeafNode(bvhNodes[leftChild])) ? ci : ct) * bvhNodes[leftChild].m_aabb.area() * rootInvArea;
+		}
+		if (bvhNodes[i].m_firstChildIdx + 1 != INVALID_NODE_IDX)
+		{
+			u32 rightChild = bvhNodes[i].m_firstChildIdx + 1;
+			cost += ((SahBvhNode::isLeafNode(bvhNodes[rightChild])) ? ci : ct) * bvhNodes[rightChild].m_aabb.area() * rootInvArea;
+		}
+	}
+	return cost;
+}

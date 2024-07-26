@@ -27,7 +27,7 @@ namespace BvhConstruction
 	public:
 		void build(Context& context, std::vector<Triangle>& primitives);
 
-		void traverseBvh(Context& context, std::vector<Triangle>& primitives);
+		void traverseBvh(Context& context, std::vector<Triangle>& primitives, u32 nTotalNodes);
 
 		std::vector<SahBvhNode> m_bvhNodes;
 		Oro::GpuMemory<SahBvhNode> d_bvhNodes;

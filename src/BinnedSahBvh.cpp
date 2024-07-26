@@ -208,10 +208,10 @@ void SahBvh::build(Context& context, std::vector<Triangle>& primitives)
 	assert(Utility::checkSahCorrectness(m_bvhNodes.data(), 0, primitives.size()));
 #endif 
 
-	traverseBvh(context, primitives);
+	traverseBvh(context, primitives, bvhNodeIdx);
 }
 
-void SahBvh::traverseBvh(Context& context, std::vector<Triangle>& primitives)
+void SahBvh::traverseBvh(Context& context, std::vector<Triangle>& primitives, u32 nTotalNodes)
 {
 	Transformation t;
 	t.m_translation = float3{ 0.0f, 0.0f, -3.0f };
@@ -261,9 +261,12 @@ void SahBvh::traverseBvh(Context& context, std::vector<Triangle>& primitives)
 	u8* colorBuffer = (u8*)malloc(launchSize * 4);
 	memset(colorBuffer, 0, launchSize * 4);
 
+
+	std::cout << "Binned Sah Cost : " << Utility::calculateBinnedSahBvhCost(m_bvhNodes.data(), 0, nTotalNodes);
+
 	Utility::TraversalSahBvhCPU(debugRayBuff, m_bvhNodes, primitives, t, colorBuffer, width, height);
 
 	stbi_write_png("test.png", width, height, 4, colorBuffer, width * 4);
-
-	std::cout << "Done!!";
+	
+	
 }

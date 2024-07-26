@@ -10,6 +10,8 @@
 #include "tiny_obj_loader.h"
 #include "SinglePassLbvh.h"
 #include "TwoPassLbvh.h"
+#include "BinnedSahBvh.h"
+
 using namespace BvhConstruction;
 
 void loadScene(const std::string& filename,	const std::string& mtlBaseDir, std::vector<Triangle>& trianglesOut )
@@ -166,11 +168,11 @@ int main(int argc, char* argv[])
 	{
 		Context context;
 		Timer timer;
-		SinglePassLbvh bvh;
+		TwoPassLbvh bvh;
 
 		std::vector<Triangle> triangles;
 		//loadScene("../src/meshes/cornellbox/cornellbox.obj", "../src/meshes/cornellbox/", triangles);
-		loadScene("../src/meshes/sponza/sponza.obj", "../src/sponza/sponza/", triangles);
+		loadScene("../src/meshes/bunny/bunny.obj", "../src/bunny/bunny/", triangles);
 
 		bvh.build(context, triangles);
 		bvh.traverseBvh(context);

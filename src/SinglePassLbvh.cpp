@@ -121,9 +121,10 @@ void SinglePassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 			m_rootNodeIdx = d_bvhNodeCounter.getData()[nLeafNodes - 1];
 		}
 #if _DEBUG
-		const auto debugBuiltNodes = d_bvhNodes.getData();
-		assert(Utility::checkLbvhRootAabb(debugBuiltNodes.data(), m_rootNodeIdx, nLeafNodes, nInternalNodes) == true);
-		assert(Utility::checkLBvhCorrectness(debugBuiltNodes.data(), m_rootNodeIdx, nLeafNodes, nInternalNodes) == true);
+		const auto h_bvhNodes = d_bvhNodes.getData();
+		assert(Utility::checkLbvhRootAabb(h_bvhNodes.data(), m_rootNodeIdx, nLeafNodes, nInternalNodes) == true);
+		assert(Utility::checkLBvhCorrectness(h_bvhNodes.data(), m_rootNodeIdx, nLeafNodes, nInternalNodes) == true);
+		m_cost = Utility::calculateLbvhCost(h_bvhNodes.data(), m_rootNodeIdx, nLeafNodes, nInternalNodes);
 #endif
 	}
 }
@@ -268,6 +269,7 @@ void SinglePassLbvh::traverseBvh(Context& context)
 	std::cout << "SortingTime : " << m_timer.getTimeRecord(SortingTime) << "ms" << std::endl;
 	std::cout << "BvhBuildTime : " << m_timer.getTimeRecord(BvhBuildTime) << "ms" << std::endl;
 	std::cout << "TraversalTime : " << m_timer.getTimeRecord(TraversalTime) << "ms" << std::endl;
+	std::cout << "Bvh Cost : " << m_cost << std::endl;
 	std::cout << "Total Time : " << m_timer.getTimeRecord(CalculateCentroidExtentsTime) + m_timer.getTimeRecord(CalculateMortonCodesTime) +
 		m_timer.getTimeRecord(SortingTime) + m_timer.getTimeRecord(BvhBuildTime) << "ms" << std::endl;
 	std::cout << "==============================================================" << std::endl;
