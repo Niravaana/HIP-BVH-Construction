@@ -20,5 +20,7 @@ namespace BvhConstruction
 		static float calculateLbvhCost(const LbvhNode* bvhNodes, u32 rootIdx, u32 nLeafNodes, u32 nInternalNodes);
 	
 		static float calculateBinnedSahBvhCost(const SahBvhNode* bvhNodes, u32 rootIdx, u32 totalNodes);
+
+		static void generateTraversalHeatMap(std::vector<u32> rayCounter, u32 width, u32 height);
 	};
 }

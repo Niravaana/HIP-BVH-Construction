@@ -208,35 +208,10 @@ void SinglePassLbvh::traverseBvh(Context& context)
 			m_timer.measure(TimerCodes::TraversalTime, [&]() { traversalKernel.launch(gridSizeX, gridSizeY, 1, blockSizeX, blockSizeY, 1); });
 		}
 
+#if _DEBUG
 		const auto rayCounter = d_rayCounterBuffer.getData();
-		u32 max = 0;
-		for (int i = 0; i < rayCounter.size(); i++)
-		{
-			if (rayCounter[i] > max)
-				max = rayCounter[i];
-		}
-		const u32 launchSize = width * height;
-		std::vector<HitInfo> h_hitInfo;
-		u8* colorBuffer = (u8*)malloc(launchSize * 4);
-		memset(colorBuffer, 0, launchSize * 4);
-		std::vector<float3> debugColors;
-
-		for (int gIdx = 0; gIdx < width; gIdx++)
-		{
-			for (int gIdy = 0; gIdy < height; gIdy++)
-			{
-				u32 index = gIdx * width + gIdy;
-				colorBuffer[index * 4 + 0] = (rayCounter[index]/(float) max) * 150;
-				colorBuffer[index * 4 + 1] = (rayCounter[index] /(float) max) * 255;
-				colorBuffer[index * 4 + 2] = 255;
-				colorBuffer[index * 4 + 3] = 255;
-				float3 col = { colorBuffer[index * 4 + 0], colorBuffer[index * 4 + 1], 0.0f };
-				debugColors.push_back(col);
-			}
-		}
-
-		stbi_write_png("colorMap.png", width, height, 4, colorBuffer, width * 4);
-		free(colorBuffer);
+		Utility::generateTraversalHeatMap(rayCounter, width, height);
+#endif 	
 #elif defined WHILEWHILE
 
 	//Traversal kernel

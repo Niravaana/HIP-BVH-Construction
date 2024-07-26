@@ -7,8 +7,8 @@
 #include <queue>
 #include <assert.h>
 
-#define WHILEWHILE 1
-//#define IFIF 1
+//#define WHILEWHILE 1
+#define IFIF 1
 #define _CPU 1
 using namespace BvhConstruction;
 
@@ -157,16 +157,14 @@ void TwoPassLbvh::traverseBvh(Context& context)
 	//set transformation for the scene (fixed currently for cornell box)
 	Transformation t;
 	t.m_translation = float3{ 0.0f, 0.0f, -3.0f };
-	t.m_scale = float3{ 1.0f, 1.0f, 1.0f };
-	t.m_quat = qtRotation(float4{ 1.0f, 0.0f, 0.0f, 1.57f });
-
+	t.m_scale = float3{ 3.0f, 3.0f, 3.0f };
+	t.m_quat = qtGetIdentity();
 	Oro::GpuMemory<Transformation> d_transformations(1); d_transformations.reset();
 	OrochiUtils::copyHtoD(d_transformations.ptr(), &t, 1);
 
-	//create camera 
 	Camera cam;
-	cam.m_eye = float4{ -20.0f, 18.5f, 10.8f, 0.0f };
-	cam.m_quat = qtRotation(float4{ 0.0f, 1.0f, 0.0f, -1.57f });
+	cam.m_eye = float4{ 0.0f, 2.5f, 5.8f, 0.0f };
+	cam.m_quat = qtRotation(float4{ 0.0f, 0.0f, 1.0f, -1.57f });
 	cam.m_fov = 45.0f * Pi / 180.f;
 	cam.m_near = 0.0f;
 	cam.m_far = 100000.0f;
@@ -219,35 +217,10 @@ void TwoPassLbvh::traverseBvh(Context& context)
 		m_timer.measure(TimerCodes::TraversalTime, [&]() { traversalKernel.launch(gridSizeX, gridSizeY, 1, blockSizeX, blockSizeY, 1); });
 	}
 
+#if _DEBUG
 	const auto rayCounter = d_rayCounterBuffer.getData();
-	u32 max = 0;
-	for (int i = 0; i < rayCounter.size(); i++)
-	{
-		if (rayCounter[i] > max)
-			max = rayCounter[i];
-	}
-	const u32 launchSize = width * height;
-	std::vector<HitInfo> h_hitInfo;
-	u8* colorBuffer = (u8*)malloc(launchSize * 4);
-	memset(colorBuffer, 0, launchSize * 4);
-	std::vector<float3> debugColors;
-
-	for (int gIdx = 0; gIdx < width; gIdx++)
-	{
-		for (int gIdy = 0; gIdy < height; gIdy++)
-		{
-			u32 index = gIdx * width + gIdy;
-			colorBuffer[index * 4 + 0] = (rayCounter[index] / (float)max) * 150;
-			colorBuffer[index * 4 + 1] = (rayCounter[index] / (float)max) * 255;
-			colorBuffer[index * 4 + 2] = 255;
-			colorBuffer[index * 4 + 3] = 255;
-			float3 col = { colorBuffer[index * 4 + 0], colorBuffer[index * 4 + 1], 0.0f };
-			debugColors.push_back(col);
-}
-		}
-
-	stbi_write_png("colorMap.png", width, height, 4, colorBuffer, width * 4);
-	free(colorBuffer);
+	Utility::generateTraversalHeatMap(rayCounter, width, height);
+#endif 	
 #elif defined WHILEWHILE
 
 	//Traversal kernel
