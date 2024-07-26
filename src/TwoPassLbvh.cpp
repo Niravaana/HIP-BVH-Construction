@@ -1,9 +1,11 @@
 #include "TwoPassLbvh.h"
+#include <src/Utility.h>
 #include <dependencies/stbi/stbi_image_write.h>
 #include <dependencies/stbi/stb_image.h>
 #include <ParallelPrimitives/RadixSort.h>
 #include <iostream>
 #include <queue>
+#include <assert.h>
 
 #define WHILEWHILE 1
 //#define IFIF 1
@@ -141,73 +143,11 @@ void TwoPassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 			m_timer.measure(TimerCodes::BvhBuildTime, [&]() { fitBvhNodesKernel.launch(nLeafNodes); });
 		}
 
-		Aabb rootAabb;
-		std::vector<u32> primIdxsX;
-		rootAabb.reset();
-		for (size_t i = 0; i < nLeafNodes; i++)
-		{
-			rootAabb.grow(debugBuiltNodes[nInternalNodes + i].m_aabb);
-			primIdxsX.push_back(debugBuiltNodes[nInternalNodes + i].m_primIdx);
-		}
-
 #if _DEBUG
-		auto h_bvhNodes = d_bvhNodes.getData();
-		std::vector<u32> primIdxs;
-		{
-			u32 stack[32];
-			int top = 0;
-			stack[top++] = INVALID_NODE_IDX;
-			u32 nodeIdx = 0;
-			
-			const auto test = d_bvhNodes.getData();
-			while (nodeIdx != INVALID_NODE_IDX)
-			{
-				LbvhNode node = debugBuiltNodes[nodeIdx];
-				if (nodeIdx >= nInternalNodes)
-				{
-					if (node.m_primIdx == 97641)
-					{
-						printf("Done");
-					}
-					primIdxs.push_back(node.m_primIdx);
-				}
-				else
-				{
-					if (node.m_leftChildIdx == 123 || node.m_rightChildIdx == 123)
-					{
-						printf("Done");
-					}
-					stack[top++] = node.m_leftChildIdx;
-					stack[top++] = node.m_rightChildIdx;
-				}
-				nodeIdx = stack[--top];
-			}
-			std::sort(primIdxs.begin(), primIdxs.end());
-		}
-
-		{
-			u32 totalNodes = nInternalNodes + nLeafNodes;
-			std::vector<int> h_flags(totalNodes, 0);
-
-			for (int gIdx = 0; gIdx < nInternalNodes; gIdx++)
-			{
-				int idx = nInternalNodes + gIdx;
-				u32 parent = h_bvhNodes[idx].m_parentIdx;
-
-				while (h_flags[parent]++ > 0)
-				{
-					{
-						u32 leftChildIdx = h_bvhNodes[parent].m_leftChildIdx;
-						u32 rightChildIdx = h_bvhNodes[parent].m_rightChildIdx;
-						h_bvhNodes[parent].m_aabb = merge(h_bvhNodes[leftChildIdx].m_aabb, h_bvhNodes[rightChildIdx].m_aabb);
-						parent = h_bvhNodes[parent].m_parentIdx;
-					}
-				}
-			}
-		}
-		
-		printf("Done\n");
-#endif 
+		const auto h_bvhNodes = d_bvhNodes.getData();
+		assert(Utility::checkLbvhRootAabb(h_bvhNodes.data(), m_rootNodeIdx, nLeafNodes, nInternalNodes) == true);
+		assert(Utility::checkLBvhCorrectness(h_bvhNodes.data(), m_rootNodeIdx, nLeafNodes, nInternalNodes) == true);
+#endif
 	}
 }
 

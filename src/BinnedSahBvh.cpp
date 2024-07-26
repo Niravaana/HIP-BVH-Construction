@@ -2,90 +2,15 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <dependencies/stbi/stbi_image_write.h>
 #define STB_IMAGE_IMPLEMENTATION
+#include "BinnedSahBvh.h"
+#include <src/Utility.h>
 #include <dependencies/stbi/stb_image.h>
 #include <ParallelPrimitives/RadixSort.h>
 #include <iostream>
 #include <queue>
+#include <assert.h>
 
 using namespace BvhConstruction;
-
-static void TraversalSahBvhCPU(const std::vector<Ray>& rayBuff, std::vector<SahBvhNode> bvhNodes, std::vector<Triangle> primitives, Transformation& t, u8* dst, u32 width, u32 height)
-{
-	for (int gIdx = 0; gIdx < width; gIdx++)
-	{
-		for (int gIdy = 0; gIdy < height; gIdy++)
-		{
-			u32 nodeIdx = 0;
-			u32 top = 0;
-			u32 stack[64];
-			stack[top++] = INVALID_NODE_IDX;
-			HitInfo hit;
-			u32 index = gIdx * width + gIdy;
-
-			Ray ray = rayBuff[index];
-			Ray transformedRay;
-			transformedRay.m_origin = invTransform(ray.m_origin, t.m_scale, t.m_quat, t.m_translation);
-			transformedRay.m_direction = invTransform(ray.m_direction, t.m_scale, t.m_quat, { 0.0f,0.0f,0.0f });
-			float3 invRayDir = 1.0f / transformedRay.m_direction;
-
-			while (nodeIdx != INVALID_NODE_IDX)
-			{
-				const SahBvhNode& node = bvhNodes[nodeIdx];
-
-				if (SahBvhNode::isLeafNode(node))
-				{
-					Triangle& triangle = primitives[node.m_firstChildIdx];
-					float3 tV0 = transform(triangle.v1, t.m_scale, t.m_quat, t.m_translation);
-					float3 tV1 = transform(triangle.v2, t.m_scale, t.m_quat, t.m_translation);
-					float3 tV2 = transform(triangle.v3, t.m_scale, t.m_quat, t.m_translation);
-
-					float4 itr = intersectTriangle(tV0, tV1, tV2, ray.m_origin, ray.m_direction);
-					if (itr.x > 0.0f && itr.y > 0.0f && itr.z > 0.0f && itr.w > 0.0f && itr.w < hit.m_t)
-					{
-						hit.m_primIdx = node.m_firstChildIdx;
-						hit.m_t = itr.w;
-						hit.m_uv = { itr.x, itr.y };
-					}
-				}
-				else
-				{
-					const Aabb left = bvhNodes[node.m_firstChildIdx].m_aabb;
-					const Aabb right = bvhNodes[node.m_firstChildIdx + 1].m_aabb;
-					const float2 t0 = left.intersect(transformedRay.m_origin, invRayDir, hit.m_t);
-					const float2 t1 = right.intersect(transformedRay.m_origin, invRayDir, hit.m_t);
-					const bool hitLeft = (t0.x <= t0.y);
-					const bool hitRight = (t1.x <= t1.y);
-
-					if (hitLeft || hitRight)
-					{
-						if (hitLeft && hitRight)
-						{
-							nodeIdx = (t0.x < t1.x) ? node.m_firstChildIdx : node.m_firstChildIdx + 1;
-							if (top < 64)
-							{
-								stack[top++] = (t0.x < t1.x) ? node.m_firstChildIdx + 1 : node.m_firstChildIdx;
-							}
-						}
-						else
-						{
-							nodeIdx = (hitLeft) ? node.m_firstChildIdx : node.m_firstChildIdx + 1;
-						}
-						continue;
-					}
-				}
-				nodeIdx = stack[--top];
-			}
-
-			if (hit.m_primIdx != INVALID_PRIM_IDX)
-			{
-				dst[index * 4 + 0] = (hit.m_uv.x) * 255;
-				dst[index * 4 + 1] = (hit.m_uv.y) * 255;
-				dst[index * 4 + 2] = (1 - hit.m_uv.x - hit.m_uv.y) * 255;
-				dst[index * 4 + 3] = 255;
-			}
-		}
-	}
-}
 
 void SahBvh::build(Context& context, std::vector<Triangle>& primitives)
 {
@@ -279,29 +204,8 @@ void SahBvh::build(Context& context, std::vector<Triangle>& primitives)
 		taskQueue.push(rightTask);
 	}
 
-// Lets to DFS and collect all primIds should match total primIdx
 #if _DEBUG
-	u32 stack[32];
-	int top = 0;
-	stack[top++] = INVALID_NODE_IDX;
-	u32 nodeIdx = 0;
-	std::vector<u32> primIdxs;
-	
-	while (nodeIdx != INVALID_NODE_IDX)
-	{
-		SahBvhNode node = m_bvhNodes[nodeIdx];
-		if (SahBvhNode::isLeafNode(node))
-		{
-			primIdxs.push_back(node.m_firstChildIdx);
-		}
-		else
-		{
-			stack[top++] = node.m_firstChildIdx;
-			stack[top++] = node.m_firstChildIdx + 1;
-		}
-		nodeIdx = stack[--top];
-	}
-
+	assert(Utility::checkSahCorrectness(m_bvhNodes.data(), 0, primitives.size()));
 #endif 
 
 	traverseBvh(context, primitives);
@@ -357,7 +261,7 @@ void SahBvh::traverseBvh(Context& context, std::vector<Triangle>& primitives)
 	u8* colorBuffer = (u8*)malloc(launchSize * 4);
 	memset(colorBuffer, 0, launchSize * 4);
 
-	TraversalSahBvhCPU(debugRayBuff, m_bvhNodes, primitives, t, colorBuffer, width, height);
+	Utility::TraversalSahBvhCPU(debugRayBuff, m_bvhNodes, primitives, t, colorBuffer, width, height);
 
 	stbi_write_png("test.png", width, height, 4, colorBuffer, width * 4);
 

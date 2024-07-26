@@ -55,7 +55,7 @@
 */
 namespace BvhConstruction
 {
-	using u32 = uint32_t;
+	using u32 = unsigned int;
 	using u8 = unsigned char;
 	using u64 = unsigned long long;
 
@@ -101,6 +101,11 @@ namespace BvhConstruction
 	{
 		u32 x, y;
 	};
+
+	HOST_DEVICE INLINE bool operator==(const float3& a, const float3& b)
+	{
+		return (a.x == b.x) && (a.y == b.y) && (a.z == b.z);
+	}
 
 	HOST_DEVICE INLINE float3 operator+(const float3& a, const float3& b)
 	{

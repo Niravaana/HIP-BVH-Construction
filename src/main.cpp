@@ -166,7 +166,7 @@ int main(int argc, char* argv[])
 	{
 		Context context;
 		Timer timer;
-		TwoPassLbvh bvh;
+		SinglePassLbvh bvh;
 
 		std::vector<Triangle> triangles;
 		//loadScene("../src/meshes/cornellbox/cornellbox.obj", "../src/meshes/cornellbox/", triangles);
