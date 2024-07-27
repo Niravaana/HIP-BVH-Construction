@@ -73,4 +73,4 @@ Total Time : 0.7696ms
 
 **Todo :** Still need to explore collapsing for LBVH and see its impact on performance, take timings with Bistro like scene and write blog post explaining the method.
 
-Note : on AMD APU 780M total time is 6.494ms
+Note : on AMD APU 780M total time is 5.3ms for sponza and 3.22ms for bunny.
