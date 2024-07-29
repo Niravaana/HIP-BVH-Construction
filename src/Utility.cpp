@@ -247,26 +247,22 @@ float Utility::calculateLbvhCost(const LbvhNode* bvhNodes, u32 rootIdx, u32 nLea
 	const float rootInvArea = 1.0f / bvhNodes[rootIdx].m_aabb.area();
 
 	cost += ct; //cost of root node
-	for (int i = 0; i < nLeafNodes + nInternalNodes; i++)
+	for (int i = 0; i < nInternalNodes; i++)
 	{
-		if (i < nInternalNodes)
+		u32 leftChild = bvhNodes[i].m_leftChildIdx;
+		if (leftChild != INVALID_NODE_IDX)
 		{
-			{
-				u32 leftChild = bvhNodes[i].m_leftChildIdx;
-				if (leftChild < nInternalNodes)
-				{
-					cost += ct * bvhNodes[leftChild].m_aabb.area() * rootInvArea;
-				}
-			}
-			{
-				u32 rightChild = bvhNodes[i].m_rightChildIdx;
-				if (rightChild < nInternalNodes)
-				{
-					cost += ct * bvhNodes[rightChild].m_aabb.area() * rootInvArea;
-				}
-			}
+			cost += ct * bvhNodes[leftChild].m_aabb.area() * rootInvArea;
 		}
-		if (i >= nInternalNodes)
+		u32 rightChild = bvhNodes[i].m_rightChildIdx;
+		if (rightChild != INVALID_NODE_IDX)
+		{
+			cost += ct * bvhNodes[rightChild].m_aabb.area() * rootInvArea;
+		}
+	}
+	for (int i = nInternalNodes; i < nLeafNodes + nInternalNodes; i++)
+	{
+		if (bvhNodes[i].m_leftChildIdx != INVALID_NODE_IDX)
 		{
 			cost += ci * bvhNodes[i].m_aabb.area() * rootInvArea;
 		}
