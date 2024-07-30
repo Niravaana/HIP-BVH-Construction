@@ -16,7 +16,7 @@ namespace BvhConstruction
 
 		void traverseBvh(Context& context);
 
-		void collapseBvh2toBvh4(const std::vector< LbvhNode>& bvh2Nodes, std::vector<Bvh4Node>& bvh4Nodes, std::vector<PrimNode> bvh4LeafNodes, std::vector<uint2>& taskQ, u32 taskCount, u32 bvh8InternalNodeOffset, u32 nBvh2InternalNodes, u32 nBvh2LeafNodes);
+		void collapseBvh2toBvh4(const std::vector< LbvhNode>& bvh2Nodes, std::vector<Bvh4Node>& bvh4Nodes, std::vector<PrimNode> bvh4LeafNodes, std::vector<uint2>& taskQ, u32 taskCount, u32& bvh8InternalNodeOffset, u32 nBvh2InternalNodes, u32 nBvh2LeafNodes);
 
 		Oro::GpuMemory<Triangle> d_triangleBuff;
 		Oro::GpuMemory<Aabb> d_triangleAabb;

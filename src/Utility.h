@@ -20,6 +20,8 @@ namespace BvhConstruction
 		static void TraversalSahBvhCPU(const std::vector<Ray>& rayBuff, std::vector<SahBvhNode> bvhNodes, std::vector<Triangle> primitives, Transformation& t, u8* dst, u32 width, u32 height);
 		
 		static float calculateLbvhCost(const LbvhNode* bvhNodes, u32 rootIdx, u32 nLeafNodes, u32 nInternalNodes);
+
+		static float calculatebvh4Cost(const Bvh4Node* bvhNodes, const LbvhNode* bvh2Nodes, u32 rootIdx, u32 totalNodes, u32 nInternalNodes);
 	
 		static float calculateBinnedSahBvhCost(const SahBvhNode* bvhNodes, u32 rootIdx, u32 totalNodes);
 

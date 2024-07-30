@@ -174,6 +174,7 @@ void TwoPassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 
 		assert(Utility::checkLBvh4Correctness(wideBvhNodes.data(), wideLeafNodes.data(), m_rootNodeIdx, nInternalNodes) == true);
 
+		m_cost = Utility::calculatebvh4Cost(wideBvhNodes.data(), h_bvhNodes.data(), m_rootNodeIdx, internalNodeOffset, nInternalNodes);
 		std::cout << "Done";
 	}
 }
@@ -284,7 +285,7 @@ void TwoPassLbvh::traverseBvh(Context& context)
 	std::cout << "==============================================================" << std::endl;
 }
 
-void TwoPassLbvh::collapseBvh2toBvh4(const std::vector<LbvhNode>& bvh2Nodes, std::vector<Bvh4Node>& bvh4Nodes, std::vector<PrimNode> bvh4LeafNodes, std::vector<uint2>& taskQ, u32 taskCount, u32 bvh8InternalNodeOffset, u32 nBvh2InternalNodes, u32 nBvh2LeafNodes)
+void TwoPassLbvh::collapseBvh2toBvh4(const std::vector<LbvhNode>& bvh2Nodes, std::vector<Bvh4Node>& bvh4Nodes, std::vector<PrimNode> bvh4LeafNodes, std::vector<uint2>& taskQ, u32 taskCount, u32& bvh8InternalNodeOffset, u32 nBvh2InternalNodes, u32 nBvh2LeafNodes)
 {
 
 	for (u32 index = 0; index < nBvh2LeafNodes; index++)

@@ -56,7 +56,7 @@ bool BvhConstruction::Utility::checkLBvh4Correctness(const Bvh4Node* bvhNodes, c
 {
 	std::vector<u32> primIdxs;
 	{
-		u32 stack[32];
+		u32 stack[64];
 		int top = 0;
 		stack[top++] = INVALID_NODE_IDX;
 		u32 nodeIdx = rootIdx;
@@ -307,6 +307,53 @@ float Utility::calculateLbvhCost(const LbvhNode* bvhNodes, u32 rootIdx, u32 nLea
 		}
 	}
 	
+	return cost;
+}
+
+float BvhConstruction::Utility::calculatebvh4Cost(const Bvh4Node* bvhNodes, const LbvhNode* bvh2Nodes, u32 rootIdx, u32 totalNodes, u32 nInternalNodes)
+{
+	u32 nodeIdx = rootIdx;
+	float cost = 0.0f;
+	constexpr float ci = 1.0f;
+	constexpr float ct = 1.0f;
+	constexpr u32 nPrimsPerLeaf = 1;
+	Aabb rootAabb; 
+	if(bvhNodes[rootIdx].m_child[0] != INVALID_NODE_IDX)
+		rootAabb.grow(bvhNodes[rootIdx].m_aabb[0]);
+	if (bvhNodes[rootIdx].m_child[1] != INVALID_NODE_IDX)
+		rootAabb.grow(bvhNodes[rootIdx].m_aabb[1]);
+	if (bvhNodes[rootIdx].m_child[2] != INVALID_NODE_IDX)
+		rootAabb.grow(bvhNodes[rootIdx].m_aabb[2]);
+	if (bvhNodes[rootIdx].m_child[3] != INVALID_NODE_IDX)
+		rootAabb.grow(bvhNodes[rootIdx].m_aabb[3]);
+
+	const float rootInvArea = 1.0f / rootAabb.area();
+
+	cost += ct; //cost of root node
+	for (int i = 0; i < totalNodes; i++)
+	{
+		if (bvhNodes[i].m_child[0] != INVALID_NODE_IDX && bvhNodes[i].m_child[0] < nInternalNodes)
+		{
+			cost += ct * bvhNodes[i].m_aabb[0].area() * rootInvArea;
+		}
+		if (bvhNodes[i].m_child[1] != INVALID_NODE_IDX && bvhNodes[i].m_child[1] < nInternalNodes)
+		{
+			cost += ct * bvhNodes[i].m_aabb[1].area() * rootInvArea;
+		}
+		if (bvhNodes[i].m_child[2] != INVALID_NODE_IDX && bvhNodes[i].m_child[2] < nInternalNodes)
+		{
+			cost += ct * bvhNodes[i].m_aabb[2].area() * rootInvArea;
+		}
+		if (bvhNodes[i].m_child[3] != INVALID_NODE_IDX && bvhNodes[i].m_child[3] < nInternalNodes)
+		{
+			cost += ct * bvhNodes[i].m_aabb[3].area() * rootInvArea;
+		}
+	}
+
+	for (int i = 0; i < nInternalNodes + 1; i++)
+	{
+		cost += bvh2Nodes[i + nInternalNodes].m_aabb.area() * rootInvArea;
+	}
 	return cost;
 }
 
