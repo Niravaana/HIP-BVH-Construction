@@ -521,6 +521,20 @@ DEVICE INLINE float atomicMaxFloat(float* addr, float value)
 		float	   m_pad;
 	};
 
+	struct alignas(128) Bvh4Node
+	{
+		Aabb m_aabb[4];
+		u32 m_child[4] = { INVALID_NODE_IDX, INVALID_NODE_IDX, INVALID_NODE_IDX, INVALID_NODE_IDX };
+		u32 m_parent;
+		u32 m_childCount = 2;
+	};
+
+	struct PrimNode
+	{
+		u32 m_primIdx = INVALID_PRIM_IDX;
+		u32 m_parent = INVALID_NODE_IDX;
+	};
+
 	struct alignas(32) HitInfo
 	{
 		u32 m_primIdx = INVALID_PRIM_IDX;
