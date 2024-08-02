@@ -9,7 +9,7 @@
 
 namespace BvhConstruction
 {
-	class PLOCNew
+	class PLOC
 	{
 	public:
 		void build(Context& context, std::vector<Triangle>& primitives);

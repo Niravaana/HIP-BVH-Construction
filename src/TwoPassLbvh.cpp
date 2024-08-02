@@ -12,8 +12,178 @@
 #define _CPU 1
 using namespace BvhConstruction;
 
+// ToDo wide bvh traversal not yet implemented
+
+static void doEarlySplitClipping(std::vector<Triangle>& inputPrims, std::vector<PrimRef>& outPrimRefs, float saMax = 5.0f)
+{
+	std::queue<PrimRef> taskQueue;
+	for (int i = 0; i < inputPrims.size(); i++)
+	{
+		Aabb primAabb;
+		primAabb.grow(inputPrims[i].v1);
+		primAabb.grow(inputPrims[i].v2);
+		primAabb.grow(inputPrims[i].v3);
+		PrimRef ref = { i, primAabb };
+
+		taskQueue.push(ref);
+	}
+
+	while (!taskQueue.empty())
+	{
+		PrimRef ref = taskQueue.front(); taskQueue.pop();
+
+		if (ref.m_aabb.area() <= saMax)
+		{
+			outPrimRefs.push_back(ref);
+		}
+		else
+		{
+			const auto extent = ref.m_aabb.extent();
+			const auto centre = ref.m_aabb.center();
+			const auto offset = ref.m_aabb.m_min + (extent - centre);
+
+			Aabb L = (ref.m_aabb.m_min, ref.m_aabb.m_min + offset);
+			Aabb R = { ref.m_aabb.m_max - offset, ref.m_aabb.m_max};
+
+			PrimRef LRef = { ref.m_primIdx, L };
+			PrimRef RRef = { ref.m_primIdx, R };
+
+			taskQueue.push(LRef);
+			taskQueue.push(RRef);
+		}
+	}
+}
+
+#define USE_PRIM_SPLITTING 1
+
 void TwoPassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 {
+	
+#ifdef USE_PRIM_SPLITTING
+
+	std::vector<PrimRef> h_primRefs;
+	doEarlySplitClipping(primitives, h_primRefs);
+
+	const size_t primitiveCount = h_primRefs.size();
+	Oro::GpuMemory<PrimRef> d_primRefs(primitiveCount); d_primRefs.reset();
+	OrochiUtils::copyHtoD(d_primRefs.ptr(), h_primRefs.data(), primitiveCount);
+
+	d_sceneExtents.resize(1); d_sceneExtents.reset();
+	{
+		Kernel centroidExtentsKernel;
+
+		buildKernelFromSrc(
+			centroidExtentsKernel,
+			context.m_orochiDevice,
+			"../src/CommonBlocksKernel.h",
+			"CalculatePrimRefExtents",
+			std::nullopt);
+
+		centroidExtentsKernel.setArgs({ d_primRefs.ptr() , d_sceneExtents.ptr(), primitiveCount });
+		m_timer.measure(TimerCodes::CalculateCentroidExtentsTime, [&]() { centroidExtentsKernel.launch(primitiveCount); });
+	}
+
+	d_mortonCodeKeys.resize(primitiveCount); d_mortonCodeKeys.reset();
+	d_mortonCodeValues.resize(primitiveCount); d_mortonCodeValues.reset();
+	d_sortedMortonCodeKeys.resize(primitiveCount); d_sortedMortonCodeKeys.reset();
+	d_sortedMortonCodeValues.resize(primitiveCount); d_sortedMortonCodeValues.reset();
+	{
+		Kernel calulateMortonCodesKernel;
+
+		buildKernelFromSrc(
+			calulateMortonCodesKernel,
+			context.m_orochiDevice,
+			"../src/CommonBlocksKernel.h",
+			"CalculateMortonCodesPrimRef",
+			std::nullopt);
+
+		calulateMortonCodesKernel.setArgs({ d_primRefs.ptr(), d_sceneExtents.ptr() , d_mortonCodeKeys.ptr(), d_mortonCodeValues.ptr(), primitiveCount });
+		m_timer.measure(TimerCodes::CalculateMortonCodesTime, [&]() { calulateMortonCodesKernel.launch(primitiveCount); });
+	}
+
+	const auto debugPrimRefs = d_primRefs.getData();
+	const auto ext = d_sceneExtents.getData();
+	{
+		OrochiUtils oroUtils;
+		Oro::RadixSort sort(context.m_orochiDevice, oroUtils, 0, "../dependencies/Orochi/ParallelPrimitives/RadixSortKernels.h", "../dependencies/Orochi");
+
+		Oro::RadixSort::KeyValueSoA srcGpu{};
+		Oro::RadixSort::KeyValueSoA dstGpu{};
+		static constexpr auto startBit{ 0 };
+		static constexpr auto endBit{ 32 };
+		static constexpr auto stream = 0;
+
+		srcGpu.key = d_mortonCodeKeys.ptr();
+		srcGpu.value = d_mortonCodeValues.ptr();
+
+		dstGpu.key = d_sortedMortonCodeKeys.ptr();
+		dstGpu.value = d_sortedMortonCodeValues.ptr();
+
+		m_timer.measure(SortingTime, [&]() {
+			sort.sort(srcGpu, dstGpu, static_cast<int>(primitiveCount), startBit, endBit, stream); });
+	}
+
+	const u32 nLeafNodes = primitiveCount;
+	const u32 nInternalNodes = nLeafNodes - 1;
+	const u32 nTotalNodes = nInternalNodes + nLeafNodes;
+	m_nInternalNodes = nInternalNodes;
+	d_bvhNodes.resize(nTotalNodes);
+	Oro::GpuMemory<u32> d_parentIdxs(nTotalNodes);
+	{
+		{
+			Kernel initBvhNodesKernel;
+
+			buildKernelFromSrc(
+				initBvhNodesKernel,
+				context.m_orochiDevice,
+				"../src/TwoPassLbvhKernel.h",
+				"InitBvhNodesPrimRef",
+				std::nullopt);
+
+			initBvhNodesKernel.setArgs({ d_primRefs.ptr(), d_bvhNodes.ptr(), d_parentIdxs.ptr(), d_sortedMortonCodeValues.ptr(), nLeafNodes, nInternalNodes });
+			m_timer.measure(TimerCodes::BvhBuildTime, [&]() { initBvhNodesKernel.launch(nLeafNodes); });
+		}
+
+#if _DEBUG
+		const auto debugNodes = d_bvhNodes.getData();
+#endif
+
+		{
+			Kernel bvhBuildKernel;
+
+			buildKernelFromSrc(
+				bvhBuildKernel,
+				context.m_orochiDevice,
+				"../src/TwoPassLbvhKernel.h",
+				"BvhBuild",
+				std::nullopt);
+
+			bvhBuildKernel.setArgs({ d_bvhNodes.ptr(), d_parentIdxs.ptr(), d_sortedMortonCodeKeys.ptr(), nLeafNodes, nInternalNodes });
+			m_timer.measure(TimerCodes::BvhBuildTime, [&]() { bvhBuildKernel.launch(nInternalNodes); });
+		}
+
+		d_flags.resize(nTotalNodes); d_flags.reset();
+		{
+			Kernel fitBvhNodesKernel;
+
+			buildKernelFromSrc(
+				fitBvhNodesKernel,
+				context.m_orochiDevice,
+				"../src/TwoPassLbvhKernel.h",
+				"FitBvhNodes",
+				std::nullopt);
+
+			fitBvhNodesKernel.setArgs({ d_bvhNodes.ptr(), d_parentIdxs.ptr(), d_flags.ptr(), nLeafNodes, nInternalNodes });
+			m_timer.measure(TimerCodes::BvhBuildTime, [&]() { fitBvhNodesKernel.launch(nLeafNodes); });
+		}
+	}
+
+#if _DEBUG
+	const auto debugBuiltNodes = d_bvhNodes.getData();
+	const auto extent = d_sceneExtents.getData();
+#endif
+
+#else
 	const size_t primitiveCount = primitives.size();
 	d_triangleBuff.resize(primitiveCount); d_triangleBuff.reset();
 	d_triangleAabb.resize(primitiveCount); d_triangleAabb.reset(); //ToDo we might not need it.
@@ -151,32 +321,34 @@ void TwoPassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 		m_cost = Utility::calculateLbvhCost(h_bvhNodes.data(), m_rootNodeIdx, nLeafNodes, nInternalNodes);
 #endif
 
-		std::vector<Bvh4Node> wideBvhNodes(2 * primitiveCount); //will hold internal nodes for wide bvh
-		std::vector<PrimNode> wideLeafNodes(primitiveCount); // leaf nodes of wide bvh
-		uint2 invTask = { INVALID_NODE_IDX, INVALID_NODE_IDX };
-		std::vector<uint2> taskQ(primitiveCount, invTask);
-		u32 taskCounter = 0; //when it reached to num of primCounts we break out of loop
-		u32 internalNodeOffset = 1; // we will shift it by internal nodes created, set to 1 as root node is the first one
-		taskQ[0] = { 0, INVALID_NODE_IDX }; //initially we have only root task 
+#endif // prim splitting #ifdef  
 
-		/*
-		
-		  ToDo we no longer need AABB in LBVH node for leaf so we can get rid of it, we can separate primNodes and Bvh2Nodes there too
-		
-		*/
+		//std::vector<Bvh4Node> wideBvhNodes(2 * primitiveCount); //will hold internal nodes for wide bvh
+		//std::vector<PrimNode> wideLeafNodes(primitiveCount); // leaf nodes of wide bvh
+		//uint2 invTask = { INVALID_NODE_IDX, INVALID_NODE_IDX };
+		//std::vector<uint2> taskQ(primitiveCount, invTask);
+		//u32 taskCounter = 0; //when it reached to num of primCounts we break out of loop
+		//u32 internalNodeOffset = 1; // we will shift it by internal nodes created, set to 1 as root node is the first one
+		//taskQ[0] = { 0, INVALID_NODE_IDX }; //initially we have only root task 
 
-		for (int i = 0; i < primitiveCount; i++)
-		{
-			wideLeafNodes[i].m_primIdx = h_bvhNodes[i + nInternalNodes].m_leftChildIdx;
-		}
+		///*
+		//
+		//  ToDo we no longer need AABB in LBVH node for leaf so we can get rid of it, we can separate primNodes and Bvh2Nodes there too
+		//
+		//*/
 
-		collapseBvh2toBvh4(h_bvhNodes, wideBvhNodes, wideLeafNodes, taskQ, taskCounter, internalNodeOffset, nInternalNodes, nLeafNodes);
+		//for (int i = 0; i < primitiveCount; i++)
+		//{
+		//	wideLeafNodes[i].m_primIdx = h_bvhNodes[i + nInternalNodes].m_leftChildIdx;
+		//}
 
-		assert(Utility::checkLBvh4Correctness(wideBvhNodes.data(), wideLeafNodes.data(), m_rootNodeIdx, nInternalNodes) == true);
+		//collapseBvh2toBvh4(h_bvhNodes, wideBvhNodes, wideLeafNodes, taskQ, taskCounter, internalNodeOffset, nInternalNodes, nLeafNodes);
 
-		m_cost = Utility::calculatebvh4Cost(wideBvhNodes.data(), h_bvhNodes.data(), m_rootNodeIdx, internalNodeOffset, nInternalNodes);
-		std::cout << "Done";
-	}
+		//assert(Utility::checkLBvh4Correctness(wideBvhNodes.data(), wideLeafNodes.data(), m_rootNodeIdx, nInternalNodes) == true);
+
+		//m_cost = Utility::calculatebvh4Cost(wideBvhNodes.data(), h_bvhNodes.data(), m_rootNodeIdx, internalNodeOffset, nInternalNodes);
+		//std::cout << "Done";
+	//}
 }
 
 void TwoPassLbvh::traverseBvh(Context& context)

@@ -1,4 +1,4 @@
-#include "PLOC++Bvh.h"
+#include "PLOC.h"
 #include <src/Utility.h>
 #include <dependencies/stbi/stbi_image_write.h>
 #include <dependencies/stbi/stb_image.h>
@@ -12,7 +12,7 @@
 #define _CPU 1
 using namespace BvhConstruction;
 
-void PLOCNew::build(Context& context, std::vector<Triangle>& primitives)
+void PLOC::build(Context& context, std::vector<Triangle>& primitives)
 {
 	const size_t primitiveCount = primitives.size();
 	d_triangleBuff.resize(primitiveCount); d_triangleBuff.reset();
@@ -43,6 +43,8 @@ void PLOCNew::build(Context& context, std::vector<Triangle>& primitives)
 	const auto debugExtent = d_sceneExtents.getData()[0];
 #endif
 
+
+	Oro::GpuMemory<Aabb> d_aabb(2 * primitiveCount - 1);
 	d_mortonCodeKeys.resize(primitiveCount); d_mortonCodeKeys.reset();
 	d_mortonCodeValues.resize(primitiveCount); d_mortonCodeValues.reset();
 	d_sortedMortonCodeKeys.resize(primitiveCount); d_sortedMortonCodeKeys.reset();
@@ -57,7 +59,7 @@ void PLOCNew::build(Context& context, std::vector<Triangle>& primitives)
 			"CalculateMortonCodes",
 			std::nullopt);
 
-		calulateMortonCodesKernel.setArgs({ d_triangleAabb.ptr(), d_sceneExtents.ptr() , d_mortonCodeKeys.ptr(), d_mortonCodeValues.ptr(), primitiveCount });
+		calulateMortonCodesKernel.setArgs({ d_triangleAabb.ptr(), d_aabb.ptr(), d_sceneExtents.ptr() , d_mortonCodeKeys.ptr(), d_mortonCodeValues.ptr(), primitiveCount});
 		m_timer.measure(TimerCodes::CalculateMortonCodesTime, [&]() { calulateMortonCodesKernel.launch(primitiveCount); });
 	}
 
@@ -88,9 +90,22 @@ void PLOCNew::build(Context& context, std::vector<Triangle>& primitives)
 	const auto debugSortedMortonCodes = d_sortedMortonCodeKeys.getData();
 	const auto debugSortedMortonCodesVal = d_sortedMortonCodeValues.getData();
 #endif
-	
+
+	u32 nClusters = primitiveCount;
+	while (nClusters > 1)
+	{
+		/* generate neighbours */
+
+		// nClusters = primitiveCount
+		// radius 32 
+		// BB : d_aabb
+		// nodeIdx[0] : d_sortedMortonCodeValues
+		// nodeIdx[1] : d_mortonCodeValues
+		// neighbourIdxs - out
+		// neighbourDist - out 
+	}
 }
 
-void PLOCNew::traverseBvh(Context& context)
+void PLOC::traverseBvh(Context& context)
 {
 }

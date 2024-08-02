@@ -139,6 +139,38 @@ extern "C" __global__ void InitBvhNodes(
 	}
 }
 
+extern "C" __global__ void InitBvhNodesPrimRef(
+	const PrimRef* __restrict__ primitives,
+	LbvhNode* __restrict__ bvhNodes,
+	u32* __restrict__ parentIdxs,
+	const u32* __restrict__ primIdx,
+	const u32 nLeafNodes,
+	const u32 nInternalNodes
+)
+{
+	unsigned int gIdx = threadIdx.x + blockIdx.x * blockDim.x;
+
+	if (gIdx < nLeafNodes)
+	{
+		const u32 nodeIdx = gIdx + nInternalNodes;
+		u32 idx = primIdx[gIdx];
+		LbvhNode& node = bvhNodes[nodeIdx];
+		node.m_aabb.reset();
+		node.m_aabb = primitives[idx].m_aabb;
+		node.m_leftChildIdx = idx;
+		node.m_rightChildIdx = INVALID_NODE_IDX;
+		parentIdxs[nodeIdx] = INVALID_NODE_IDX;
+	}
+	if (gIdx < nInternalNodes)
+	{
+		LbvhNode& node = bvhNodes[gIdx];
+		node.m_aabb.reset();
+		node.m_leftChildIdx = INVALID_NODE_IDX;
+		node.m_rightChildIdx = INVALID_NODE_IDX;
+		parentIdxs[gIdx] = INVALID_NODE_IDX;
+	}
+}
+
 extern "C" __global__ void BvhBuild(
 	LbvhNode* __restrict__ bvhNodes,
 	u32* __restrict__ parentIdxs,

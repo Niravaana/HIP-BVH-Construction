@@ -82,6 +82,31 @@ extern "C" __global__ void CalculateSceneExtents(const Triangle* __restrict__ pr
 		sceneExtent->atomicGrow(blockExtent);
 }
 
+
+extern "C" __global__ void CalculatePrimRefExtents(PrimRef* __restrict__ primRefs, Aabb* __restrict__ sceneExtent, u32 primCount)
+{
+	u32 gIdx = blockIdx.x * blockDim.x + threadIdx.x;
+
+	sceneExtent->reset();
+	Aabb primAabb;
+
+	if (gIdx < primCount)
+	{
+		primAabb = primRefs[gIdx].m_aabb;
+	}
+	else
+	{
+		primAabb = primRefs[primCount - 1].m_aabb;
+	}
+
+	__shared__ u8 sharedMem[sizeof(Aabb) * WarpSize];
+	Aabb* pSharedMem = reinterpret_cast<Aabb*>(sharedMem);
+	Aabb blockExtent = blockReduce(primAabb, pSharedMem);
+
+	if (threadIdx.x == 0)
+		sceneExtent->atomicGrow(blockExtent);
+}
+
 DEVICE u32 morton2D(u32 v)
 {
 	v &= 0x0000ffff;				
@@ -329,6 +354,20 @@ extern "C" __global__ void CalculateMortonCodes(const Aabb* __restrict__ bounds,
 	mortonCodesOut[gIdx] = computeExtendedMortonCode(normalizedCentroid, extents);
 	primIdxOut[gIdx] = gIdx;
 }
+
+extern "C" __global__ void CalculateMortonCodesPrimRef(const PrimRef* __restrict__ primRefs, const Aabb* __restrict__ sceneExtents, u32* __restrict__ mortonCodesOut, u32* __restrict__ primIdxOut, u32 primCount)
+{
+	const unsigned int gIdx = threadIdx.x + blockIdx.x * blockDim.x;
+	if (gIdx >= primCount) return;
+
+	float3 centre = primRefs[gIdx].m_aabb.center();
+	float3 extents = sceneExtents[0].extent();
+	float3 normalizedCentroid = (centre - sceneExtents[0].m_min) / extents;
+
+	mortonCodesOut[gIdx] = computeExtendedMortonCode(normalizedCentroid, extents);
+	primIdxOut[gIdx] = primRefs[gIdx].m_primIdx;
+}
+
 
 HOST_DEVICE INLINE u32 lcg(u32& seed)
 {

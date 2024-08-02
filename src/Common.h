@@ -535,6 +535,12 @@ DEVICE INLINE float atomicMaxFloat(float* addr, float value)
 		u32 m_parent = INVALID_NODE_IDX;
 	};
 
+	struct PrimRef
+	{
+		u32 m_primIdx = INVALID_PRIM_IDX;
+		Aabb m_aabb;
+	};
+
 	struct alignas(32) HitInfo
 	{
 		u32 m_primIdx = INVALID_PRIM_IDX;
