@@ -12,9 +12,11 @@
 #define _CPU 1
 using namespace BvhConstruction;
 
+#define USE_PRIM_SPLITTING 1
+
 // ToDo wide bvh traversal not yet implemented
 
-static void doEarlySplitClipping(std::vector<Triangle>& inputPrims, std::vector<PrimRef>& outPrimRefs, float saMax = 300.0f)
+static void doEarlySplitClipping(std::vector<Triangle>& inputPrims, std::vector<PrimRef>& outPrimRefs, float saMax = 9000.0f)
 {
 	std::queue<PrimRef> taskQueue;
 	for (int i = 0; i < inputPrims.size(); i++)
@@ -39,11 +41,55 @@ static void doEarlySplitClipping(std::vector<Triangle>& inputPrims, std::vector<
 		else
 		{
 			const auto extent = ref.m_aabb.extent();
+			const int dim = ref.m_aabb.maximumExtentDim();
 			const auto centre = ref.m_aabb.center();
 			const auto offset = ref.m_aabb.m_min + (extent - centre);
 
-			Aabb L = (ref.m_aabb.m_min, ref.m_aabb.m_min + offset);
-			Aabb R = { ref.m_aabb.m_max - offset, ref.m_aabb.m_max};
+			float3 lMin = ref.m_aabb.m_min;
+			float3 lMax;
+			if (dim == 0)
+			{
+				lMax.x = centre.x;
+				lMax.y = ref.m_aabb.m_max.y;
+				lMax.z = ref.m_aabb.m_max.z;
+			}
+			if (dim == 1)
+			{
+				lMax.x = ref.m_aabb.m_max.x; 
+				lMax.y = centre.y;
+				lMax.z = ref.m_aabb.m_max.z;
+			}
+			if (dim == 2)
+			{
+				lMax.x = ref.m_aabb.m_max.x;
+				lMax.y = ref.m_aabb.m_max.y;
+				lMax.z = centre.z; 
+			}
+
+			Aabb L = { lMin, lMax };
+
+			float3 RMin;
+			float3 RMax = ref.m_aabb.m_max;
+			if (dim == 0)
+			{
+				RMin.x = centre.x;
+				RMin.y = ref.m_aabb.m_min.y;
+				RMin.z = ref.m_aabb.m_min.z;
+			}
+			if (dim == 1)
+			{
+				RMin.x = ref.m_aabb.m_min.x;
+				RMin.y = centre.y; 
+				RMin.z = ref.m_aabb.m_min.z;
+			}
+			if (dim == 2)
+			{
+				RMin.x = ref.m_aabb.m_min.x;
+				RMin.y = ref.m_aabb.m_min.y;
+				RMin.z = centre.z; 
+			}
+
+			Aabb R = { RMin, RMax };
 
 			PrimRef LRef = { ref.m_primIdx, L };
 			PrimRef RRef = { ref.m_primIdx, R };
@@ -54,7 +100,6 @@ static void doEarlySplitClipping(std::vector<Triangle>& inputPrims, std::vector<
 	}
 }
 
-#define USE_PRIM_SPLITTING 1
 
 void TwoPassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 {
@@ -324,40 +369,38 @@ void TwoPassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 		m_cost = Utility::calculateLbvhCost(h_bvhNodes.data(), m_rootNodeIdx, nLeafNodes, nInternalNodes);
 #endif
 
-#endif // prim splitting #ifdef  
+		std::vector<Bvh4Node> wideBvhNodes(2 * primitiveCount); //will hold internal nodes for wide bvh
+		std::vector<PrimNode> wideLeafNodes(primitiveCount); // leaf nodes of wide bvh
+		uint2 invTask = { INVALID_NODE_IDX, INVALID_NODE_IDX };
+		std::vector<uint2> taskQ(primitiveCount, invTask);
+		u32 taskCounter = 0; //when it reached to num of primCounts we break out of loop
+		u32 internalNodeOffset = 1; // we will shift it by internal nodes created, set to 1 as root node is the first one
+		taskQ[0] = { 0, INVALID_NODE_IDX }; //initially we have only root task 
 
-		//std::vector<Bvh4Node> wideBvhNodes(2 * primitiveCount); //will hold internal nodes for wide bvh
-		//std::vector<PrimNode> wideLeafNodes(primitiveCount); // leaf nodes of wide bvh
-		//uint2 invTask = { INVALID_NODE_IDX, INVALID_NODE_IDX };
-		//std::vector<uint2> taskQ(primitiveCount, invTask);
-		//u32 taskCounter = 0; //when it reached to num of primCounts we break out of loop
-		//u32 internalNodeOffset = 1; // we will shift it by internal nodes created, set to 1 as root node is the first one
-		//taskQ[0] = { 0, INVALID_NODE_IDX }; //initially we have only root task 
+		/*
+		
+		  ToDo we no longer need AABB in LBVH node for leaf so we can get rid of it, we can separate primNodes and Bvh2Nodes there too
+		
+		*/
 
-		///*
-		//
-		//  ToDo we no longer need AABB in LBVH node for leaf so we can get rid of it, we can separate primNodes and Bvh2Nodes there too
-		//
-		//*/
+		for (int i = 0; i < primitiveCount; i++)
+		{
+			wideLeafNodes[i].m_primIdx = h_bvhNodes[i + nInternalNodes].m_leftChildIdx;
+		}
 
-		//for (int i = 0; i < primitiveCount; i++)
-		//{
-		//	wideLeafNodes[i].m_primIdx = h_bvhNodes[i + nInternalNodes].m_leftChildIdx;
-		//}
+		collapseBvh2toBvh4(h_bvhNodes, wideBvhNodes, wideLeafNodes, taskQ, taskCounter, internalNodeOffset, nInternalNodes, nLeafNodes);
 
-		//collapseBvh2toBvh4(h_bvhNodes, wideBvhNodes, wideLeafNodes, taskQ, taskCounter, internalNodeOffset, nInternalNodes, nLeafNodes);
+		assert(Utility::checkLBvh4Correctness(wideBvhNodes.data(), wideLeafNodes.data(), m_rootNodeIdx, nInternalNodes) == true);
 
-		//assert(Utility::checkLBvh4Correctness(wideBvhNodes.data(), wideLeafNodes.data(), m_rootNodeIdx, nInternalNodes) == true);
-
-		//m_cost = Utility::calculatebvh4Cost(wideBvhNodes.data(), h_bvhNodes.data(), m_rootNodeIdx, internalNodeOffset, nInternalNodes);
-		//std::cout << "Done";
-	//}
+		m_cost = Utility::calculatebvh4Cost(wideBvhNodes.data(), h_bvhNodes.data(), m_rootNodeIdx, internalNodeOffset, nInternalNodes);
+		std::cout << "Done";
+	}
+#endif // prim splitting #ifdef 
 }
 
 void TwoPassLbvh::traverseBvh(Context& context)
 {
 
-	//set transformation for the scene (fixed currently for cornell box)
 	Transformation t;
 	t.m_translation = float3{ 0.0f, 0.0f, -3.0f };
 	t.m_scale = float3{ 1.0f, 1.0f, 1.0f };
@@ -373,6 +416,7 @@ void TwoPassLbvh::traverseBvh(Context& context)
 	cam.m_far = 100000.0f;
 	Oro::GpuMemory<Camera> d_cam(1); d_cam.reset();
 	OrochiUtils::copyHtoD(d_cam.ptr(), &cam, 1);
+
 
 	u32 width = 512;
 	u32 height = 512;
@@ -398,11 +442,11 @@ void TwoPassLbvh::traverseBvh(Context& context)
 	}
 
 	Oro::GpuMemory<u8> d_colorBuffer(width * height * 4); d_colorBuffer.reset();
-	const auto debugRayBuff = d_rayBuffer.getData();
+	/*const auto debugRayBuff = d_rayBuffer.getData();
 	const auto debugNodes = d_bvhNodes.getData();
 	const auto debugTriBuff = d_triangleBuff.getData();
 	auto dst = d_colorBuffer.getData();
-	Utility::TraversalLbvhCPU(debugRayBuff, debugNodes, debugTriBuff, t, dst.data(), width, height, m_nInternalNodes);
+	Utility::TraversalLbvhCPU(debugRayBuff, debugNodes, debugTriBuff, t, dst.data(), width, height, m_nInternalNodes);*/
 #if defined IFIF
 
 	//Traversal kernel

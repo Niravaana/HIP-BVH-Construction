@@ -45,6 +45,8 @@
 	t.m_translation = float3{ 0.0f, 0.0f, -3.0f };
 	t.m_scale = float3{ 1.0f, 1.0f, 1.0f };
 	t.m_quat = qtRotation(float4{ 1.0f, 0.0f, 0.0f, 1.57f });
+	Oro::GpuMemory<Transformation> d_transformations(1); d_transformations.reset();
+	OrochiUtils::copyHtoD(d_transformations.ptr(), &t, 1);
 
 	Camera cam;
 	cam.m_eye = float4{ -20.0f, 18.5f, 10.8f, 0.0f };
@@ -52,6 +54,27 @@
 	cam.m_fov = 45.0f * Pi / 180.f;
 	cam.m_near = 0.0f;
 	cam.m_far = 100000.0f;
+	Oro::GpuMemory<Camera> d_cam(1); d_cam.reset();
+	OrochiUtils::copyHtoD(d_cam.ptr(), &cam, 1);
+
+* cornellbox
+	Transformation t;
+	t.m_translation = float3{ 0.0f, 0.0f, -5.0f };
+	t.m_scale = float3{ 1.0f, 1.0f, 1.0f };
+	t.m_quat = qtGetIdentity();
+	Oro::GpuMemory<Transformation> d_transformations(1); d_transformations.reset();
+	OrochiUtils::copyHtoD(d_transformations.ptr(), &t, 1);
+
+	Camera cam;
+
+	cam.m_eye = float4{ 0.0f, 2.5f, 5.8f, 0.0f };
+	cam.m_quat = qtRotation({ 0.0f, 0.0f, 1.0f, -1.57f });
+	cam.m_fov = 45.0f * Pi / 180.f;
+	cam.m_near = 0.0f;
+	cam.m_far = 100000.0f;
+
+	Oro::GpuMemory<Camera> d_cam(1); d_cam.reset();
+	OrochiUtils::copyHtoD(d_cam.ptr(), &cam, 1);
 */
 namespace BvhConstruction
 {
