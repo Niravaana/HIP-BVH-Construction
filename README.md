@@ -2,26 +2,16 @@
 
 This repo is implementation of different GPU BVH build methods and optimizations. Following methods are on the roadmap.
 
-1. LBVH - Based on research paper [Maximizing Parallelism in the Construction of BVHs,
-Octrees, and k-d Trees](https://research.nvidia.com/sites/default/files/publications/karras2012hpg_paper.pdf) **[DONE]**
+1. LBVH - Two pass method based on the research paper [Maximizing Parallelism in the Construction of BVHs,Octrees, and k-d Trees](https://research.nvidia.com/sites/default/files/publications/karras2012hpg_paper.pdf) **[DONE]**
+2. LBVH - Single pass method based on the research paper  [Fast and Simple Agglomerative LBVH Construction](https://diglib.eg.org/server/api/core/bitstreams/ad092db2-6aec-4f2c-941d-8687de258f00/content) **[DONE]**
+3. Collapse LBVH to nwide BVH - Based on the research paper [Getting Rid of Packets Efficient SIMD Single-Ray Traversal using Multi-branching BVHs](https://typeset.io/pdf/getting-rid-of-packets-efficient-simd-single-ray-traversal-29rwgbmwv3.pdf) **[DONE]**
 
-   This method builds the tree in top down fashion using above paper. We build a hierarchy in top down approach as a first pass and in second pass doing bottom up traversal we fit the tree.
-   [Single Pass LBVH](https://diglib.eg.org/server/api/core/bitstreams/ad092db2-6aec-4f2c-941d-8687de258f00/content) method improves on vanila method and build and fits heirarchy in one pass.
-   You can enable single pass build using define SINGLE_PASS_LBVH.
-
-   Note : Currently the build time for single pass is much higher than two pass, my analysis is, it is due to the way findparent generates the parent node idx. These node indices are very
-   far from each other for neighbouring threads. Because of this global load and store instruction timings are very bad in the trace.I am not sure is it because of my node size (64 bytes) currently.
-   Have to try if node size reduced to 32 bytes improves performance if building in single pass.
-             
-3. HPLOC - Based on the research paper [HPLOC](https://meistdan.github.io/publications/hploc/paper.pdf).
-   
-   This method is more suited to the GPU programming framework. So instead of trying PLOC we will implement HPLOC. They claim they are faster than PLOC and yet give almost similar tracing performance.
-
-4. Binned SAH Builder - Based on research paper "On fast Construction of SAH-based Bounding Volume Hierarchies, by I. Wald" [CPU implementation DONE]
-   
-   The GPU implementation of this method is not on the plan immediately. The CPU implementation was done so as to understand binning and SAH more.
-
-
+   Currently CPU implementation is done though it is done based on task model so easy to port it to GPU. Soon it will be ported to GPU.
+   The BVH SAH cost for bunny model drops from ~46 to ~22 while for sponza it drops to ~59 from ~131.
+5. Binned SAH Builder - Based on research paper "On fast Construction of SAH-based Bounding Volume Hierarchies, by I. Wald" **[DONE]**
+   Currently this is CPU only build, though implemented based on task model so should be easy to port to GPU.
+7. If-If/while-while traversal shaders - Based on the research paper [Understanding the Efficiency of Ray Traversal on GPUs – Kepler and Fermi Addendum](https://research.nvidia.com/sites/default/files/pubs/2012-06_Understanding-the-Efficiency/nvr-2012-02.pdf)
+ 
 # Reference Images
 
 ![test](https://github.com/user-attachments/assets/59203a5b-fa09-4afb-a696-ad854371f037)
