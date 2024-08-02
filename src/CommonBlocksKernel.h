@@ -365,7 +365,7 @@ extern "C" __global__ void CalculateMortonCodesPrimRef(const PrimRef* __restrict
 	float3 normalizedCentroid = (centre - sceneExtents[0].m_min) / extents;
 
 	mortonCodesOut[gIdx] = computeExtendedMortonCode(normalizedCentroid, extents);
-	primIdxOut[gIdx] = primRefs[gIdx].m_primIdx;
+	primIdxOut[gIdx] = gIdx;
 }
 
 

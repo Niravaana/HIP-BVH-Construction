@@ -157,7 +157,7 @@ extern "C" __global__ void InitBvhNodesPrimRef(
 		LbvhNode& node = bvhNodes[nodeIdx];
 		node.m_aabb.reset();
 		node.m_aabb = primitives[idx].m_aabb;
-		node.m_leftChildIdx = idx;
+		node.m_leftChildIdx = primitives[idx].m_primIdx;
 		node.m_rightChildIdx = INVALID_NODE_IDX;
 		parentIdxs[nodeIdx] = INVALID_NODE_IDX;
 	}
