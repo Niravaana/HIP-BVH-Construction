@@ -6,7 +6,7 @@ This repo is implementation of different GPU BVH build methods and optimizations
 2. LBVH - Single pass method based on the research paper  [Fast and Simple Agglomerative LBVH Construction](https://diglib.eg.org/server/api/core/bitstreams/ad092db2-6aec-4f2c-941d-8687de258f00/content) **[DONE]**
 3. Collapse LBVH to nwide BVH - Based on the research paper [Getting Rid of Packets Efficient SIMD Single-Ray Traversal using Multi-branching BVHs](https://typeset.io/pdf/getting-rid-of-packets-efficient-simd-single-ray-traversal-29rwgbmwv3.pdf) **[DONE]**
 
-   Currently CPU implementation is done though it is done based on task model so easy to port it to GPU. Soon it will be ported to GPU.
+   Cpu and Gpu implementation is done.
    The BVH SAH cost for bunny model drops from ~46 to ~22 while for sponza it drops to ~59 from ~131.
 5. Binned SAH Builder - Based on research paper "On fast Construction of SAH-based Bounding Volume Hierarchies, by I. Wald" **[DONE]**
    Currently this is CPU only build, though implemented based on task model so should be easy to port to GPU.
