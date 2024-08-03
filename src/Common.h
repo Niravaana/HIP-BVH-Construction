@@ -203,6 +203,16 @@ namespace BvhConstruction
 		return float3{ a.x * b.x, a.y * b.y, a.z * b.z };
 	}
 
+	HOST_DEVICE INLINE bool operator>=(const float3& a, const float3& b)
+	{
+		return (a.x >= b.x && a.y >= b.y && a.z >= b.z);
+	}
+
+	HOST_DEVICE INLINE bool operator<=(const float3& a, const float3& b)
+	{
+		return (a.x <= b.x && a.y <= b.y && a.z <= b.z);
+	}
+
 	HOST_DEVICE INLINE float3 operator*(const float3& a, const float c)
 	{
 		return float3{ c * a.x, c * a.y, c * a.z };
