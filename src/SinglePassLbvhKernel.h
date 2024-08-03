@@ -50,7 +50,7 @@ DEVICE int findParent(
 	int n)
 {
 	if (i == 0 && j == n) return INVALID_NODE_IDX;
-	if (i == 0 || (j != n && findHighestDiffBit(mortonCodes, j - 1, j, n) < findHighestDiffBit(mortonCodes, j - 1, j, n)))
+	if (i == 0 || (j != n && findHighestDiffBit(mortonCodes, j - 1, j, n) < findHighestDiffBit(mortonCodes, i - 1, i, n)))
 	{
 		bvhNodes[j - 1].m_leftChildIdx = currentNodeIdx;
 		spans[j - 1].x = i;
