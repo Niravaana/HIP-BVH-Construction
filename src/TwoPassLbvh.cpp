@@ -12,9 +12,19 @@
 #define _CPU 1
 using namespace BvhConstruction;
 
-#define USE_PRIM_SPLITTING 1
+//#define USE_PRIM_SPLITTING 1
+#define USE_GPU_WIDE_COLLAPSE 1
+/* ToDo 
+	1. Wide bvh traversal not yet implemented
+	2. Wide bvh conversion on GPU 
+	3. LBVH separate Bvh2Node and PrimNodes 
+*/
 
-// ToDo wide bvh traversal not yet implemented
+template <typename T, typename U>
+T divideRoundUp(T value, U factor)
+{
+	return (value + factor - 1) / factor;
+}
 
 static void doEarlySplitClipping(std::vector<Triangle>& inputPrims, std::vector<PrimRef>& outPrimRefs, float saMax = 9000.0f)
 {
@@ -369,6 +379,49 @@ void TwoPassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 		m_cost = Utility::calculateLbvhCost(h_bvhNodes.data(), m_rootNodeIdx, nLeafNodes, nInternalNodes);
 #endif
 
+#ifdef USE_GPU_WIDE_COLLAPSE
+
+		Oro::GpuMemory<Bvh4Node> d_wideBvhNodes(2 * primitiveCount); d_wideBvhNodes.reset();
+		Oro::GpuMemory<PrimNode> d_wideLeafNodes(primitiveCount); d_wideLeafNodes.reset();
+		uint2 invTask = { INVALID_NODE_IDX, INVALID_NODE_IDX };
+		uint2 rootTask = { 0, INVALID_NODE_IDX };
+		u32 one = 1;
+		u32 zero = 0;
+		Oro::GpuMemory<u32> d_taskCounter(1); d_taskCounter.reset();
+		Oro::GpuMemory<uint2> d_taskQ(primitiveCount); d_taskQ.reset();
+		Oro::GpuMemory<u32> d_internalNodeOffset(1); d_internalNodeOffset.reset();
+		std::vector<uint2> invTasks(primitiveCount, invTask);
+
+		OrochiUtils::copyHtoD(d_taskCounter.ptr(), &zero, 1);
+		OrochiUtils::copyHtoD(d_taskQ.ptr(), invTasks.data(), invTasks.size());
+		OrochiUtils::copyHtoD(d_taskQ.ptr(), &rootTask, 1);
+		OrochiUtils::copyHtoD(d_internalNodeOffset.ptr(), &one, 1);
+
+		const auto debugTaskQ = d_taskQ.getData();
+		{
+			Kernel collapseToWide4BvhKernel;
+
+			buildKernelFromSrc(
+				collapseToWide4BvhKernel,
+				context.m_orochiDevice,
+				"../src/TwoPassLbvhKernel.h",
+				"CollapseToWide4Bvh",
+				std::nullopt);
+
+			collapseToWide4BvhKernel.setArgs({ d_bvhNodes.ptr(), d_wideBvhNodes.ptr(), d_wideLeafNodes.ptr(), d_taskQ.ptr(), d_taskCounter.ptr(),  d_internalNodeOffset.ptr(), nInternalNodes, nLeafNodes });
+			m_timer.measure(TimerCodes::CollapseBvhTime, [&]() { collapseToWide4BvhKernel.launch(divideRoundUp(2 * primitiveCount, 3)); });
+		}
+
+		const auto wideBvhNodes = d_wideBvhNodes.getData();
+		const auto wideLeafNodes = d_wideLeafNodes.getData();
+		auto internalNodeOffset = d_internalNodeOffset.getData()[0];
+		auto tQ = d_taskQ.getData();
+
+		assert(Utility::checkLBvh4Correctness(wideBvhNodes.data(), wideLeafNodes.data(), m_rootNodeIdx, nInternalNodes) == true);
+		m_cost = Utility::calculatebvh4Cost(wideBvhNodes.data(), h_bvhNodes.data(), m_rootNodeIdx, internalNodeOffset, nInternalNodes);
+
+#else
+
 		std::vector<Bvh4Node> wideBvhNodes(2 * primitiveCount); //will hold internal nodes for wide bvh
 		std::vector<PrimNode> wideLeafNodes(primitiveCount); // leaf nodes of wide bvh
 		uint2 invTask = { INVALID_NODE_IDX, INVALID_NODE_IDX };
@@ -393,7 +446,8 @@ void TwoPassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 		assert(Utility::checkLBvh4Correctness(wideBvhNodes.data(), wideLeafNodes.data(), m_rootNodeIdx, nInternalNodes) == true);
 
 		m_cost = Utility::calculatebvh4Cost(wideBvhNodes.data(), h_bvhNodes.data(), m_rootNodeIdx, internalNodeOffset, nInternalNodes);
-		std::cout << "Done";
+
+#endif //USE_GPU_WIDE_COLLAPSE 
 	}
 #endif // prim splitting #ifdef 
 }

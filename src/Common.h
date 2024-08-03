@@ -420,7 +420,8 @@ DEVICE INLINE float atomicMaxFloat(float* addr, float value)
 		CalculateMortonCodesTime,
 		SortingTime,
 		BvhBuildTime,
-		TraversalTime
+		TraversalTime,
+		CollapseBvhTime
 	};
 
 	struct alignas(64) Triangle
