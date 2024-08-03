@@ -557,6 +557,7 @@ void TwoPassLbvh::traverseBvh(Context& context)
 	std::cout << "SortingTime : " << m_timer.getTimeRecord(SortingTime) << "ms" << std::endl;
 	std::cout << "BvhBuildTime : " << m_timer.getTimeRecord(BvhBuildTime) << "ms" << std::endl;
 	std::cout << "TraversalTime : " << m_timer.getTimeRecord(TraversalTime) << "ms" << std::endl;
+	std::cout << "CollapseTime : " << m_timer.getTimeRecord(CollapseBvhTime) << "ms" << std::endl;
 	std::cout << "Bvh Cost : " << m_cost << std::endl;
 	std::cout << "Total Time : " << m_timer.getTimeRecord(CalculateCentroidExtentsTime) + m_timer.getTimeRecord(CalculateMortonCodesTime) +
 		m_timer.getTimeRecord(SortingTime) + m_timer.getTimeRecord(BvhBuildTime) << "ms" << std::endl;
