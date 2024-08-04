@@ -62,6 +62,20 @@ Total Time : 0.7696ms
 
 -------------------------------------------------------------
 
+Time with Single Pass LBVH 
+
+CalculateCentroidExtentsTime :0.1001ms
+
+CalculateMortonCodesTime :0.0839ms
+
+SortingTime : 0.9424ms
+
+BvhBuildTime : 1.035ms
+
+Total Time : 2.1614ms
+
+------------------------------------------------------------
+
 **Todo :** Still need to explore collapsing for LBVH and see its impact on performance, take timings with Bistro like scene and write blog post explaining the method.
 
 Note : on AMD APU 780M total time is 5.3ms for sponza and 3.22ms for bunny.
