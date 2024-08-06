@@ -11,6 +11,7 @@
 #include "SinglePassLbvh.h"
 #include "TwoPassLbvh.h"
 #include "BinnedSahBvh.h"
+#include "PLOC++Bvh.h"
 
 using namespace BvhConstruction;
 
@@ -168,14 +169,14 @@ int main(int argc, char* argv[])
 	{
 		Context context;
 		Timer timer;
-		SinglePassLbvh bvh;
+		PLOCNew bvh;
 
 		std::vector<Triangle> triangles;
 		//loadScene("../src/meshes/cornellbox/cornellbox.obj", "../src/meshes/cornellbox/", triangles);
 		loadScene("../src/meshes/sponza/sponza.obj", "../src/sponza/sponza/", triangles);
 
 		bvh.build(context, triangles);
-		bvh.traverseBvh(context);
+		//bvh.traverseBvh(context);
 	}
 	catch (std::exception& e)
 	{

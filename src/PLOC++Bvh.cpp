@@ -18,9 +18,6 @@ void PLOCNew::build(Context& context, std::vector<Triangle>& primitives)
 	d_triangleBuff.resize(primitiveCount); d_triangleBuff.reset();
 	d_triangleAabb.resize(primitiveCount); d_triangleAabb.reset(); //ToDo we might not need it.
 	OrochiUtils::copyHtoD(d_triangleBuff.ptr(), primitives.data(), primitives.size());
-	Oro::GpuMemory<int> d_parentIds(primitiveCount);
-	int val = -1;
-	OrochiUtils::memset(d_parentIds.ptr(), val, sizeof(int) * primitiveCount);
 
 	d_sceneExtents.resize(1); d_sceneExtents.reset();
 	{
@@ -64,6 +61,7 @@ void PLOCNew::build(Context& context, std::vector<Triangle>& primitives)
 #if _DEBUG
 	const auto debugMortonCodes = d_mortonCodeKeys.getData();
 #endif
+
 	{
 		OrochiUtils oroUtils;
 		Oro::RadixSort sort(context.m_orochiDevice, oroUtils, 0, "../dependencies/Orochi/ParallelPrimitives/RadixSortKernels.h", "../dependencies/Orochi");
@@ -84,11 +82,36 @@ void PLOCNew::build(Context& context, std::vector<Triangle>& primitives)
 			sort.sort(srcGpu, dstGpu, static_cast<int>(primitiveCount), startBit, endBit, stream); });
 	}
 
-#if _DEBUG
-	const auto debugSortedMortonCodes = d_sortedMortonCodeKeys.getData();
-	const auto debugSortedMortonCodesVal = d_sortedMortonCodeValues.getData();
+	const u32 nLeafNodes = primitiveCount;
+	const u32 nInternalNodes = nLeafNodes - 1;
+	const u32 nTotlaNodes = nLeafNodes + nInternalNodes;
+
+	d_leafNodes.resize(primitiveCount); d_leafNodes.reset();
+	d_bvhNodes.resize(nInternalNodes); d_bvhNodes.reset();
+	Oro::GpuMemory<u32> d_nodeIdx0(primitiveCount); d_nodeIdx0.reset();
+	Oro::GpuMemory<u32> d_nodeIdx1(primitiveCount); d_nodeIdx1.reset();
+
+	{
+		Kernel setupClusterKernel;
+
+		buildKernelFromSrc(
+			setupClusterKernel,
+			context.m_orochiDevice,
+			"../src/Ploc++Kernel.h",
+			"SetupClusters",
+			std::nullopt);
+
+		setupClusterKernel.setArgs({ d_leafNodes.ptr(), d_sortedMortonCodeValues.ptr() , d_triangleAabb.ptr(), d_nodeIdx0.ptr(), primitiveCount });
+		m_timer.measure(TimerCodes::CalculateMortonCodesTime, [&]() { setupClusterKernel.launch(primitiveCount); });
+	}
+#if _DEBUG 
+
+	const auto dd = d_leafNodes.getData();
+	const auto dd1 = d_leafNodes.getData();
+
 #endif
-	
+
+
 }
 
 void PLOCNew::traverseBvh(Context& context)

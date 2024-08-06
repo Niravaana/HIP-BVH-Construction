@@ -23,6 +23,9 @@ namespace BvhConstruction
 		Oro::GpuMemory<u32> d_mortonCodeValues;
 		Oro::GpuMemory<u32> d_sortedMortonCodeKeys;
 		Oro::GpuMemory<u32> d_sortedMortonCodeValues;
+		Oro::GpuMemory<LbvhNode> d_bvhNodes;
+		Oro::GpuMemory<PrimRef> d_leafNodes;
+
 		u32 m_rootNodeIdx = 0;
 		Timer m_timer;
 		u32 m_nInternalNodes = 0;

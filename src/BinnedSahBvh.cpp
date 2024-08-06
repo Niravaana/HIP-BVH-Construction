@@ -29,7 +29,7 @@ void SahBvh::build(Context& context, std::vector<Triangle>& primitives)
 		int m_nPrims = 0;
 		Aabb m_aabb;
 	};
-	constexpr u32 nBuckets = 12;
+	constexpr u32 nBuckets = 32;
 
 	u32 primCount = primitives.size();
 

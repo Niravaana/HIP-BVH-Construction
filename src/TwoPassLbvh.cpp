@@ -371,9 +371,9 @@ void TwoPassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 			fitBvhNodesKernel.setArgs({ d_bvhNodes.ptr(), d_parentIdxs.ptr(), d_flags.ptr(), nLeafNodes, nInternalNodes });
 			m_timer.measure(TimerCodes::BvhBuildTime, [&]() { fitBvhNodesKernel.launch(nLeafNodes); });
 		}
-		
-#if _DEBUG
 		const auto h_bvhNodes = d_bvhNodes.getData();
+#if _DEBUG
+		
 		assert(Utility::checkLbvhRootAabb(h_bvhNodes.data(), m_rootNodeIdx, nLeafNodes, nInternalNodes) == true);
 		assert(Utility::checkLBvhCorrectness(h_bvhNodes.data(), m_rootNodeIdx, nLeafNodes, nInternalNodes) == true);
 		m_cost = Utility::calculateLbvhCost(h_bvhNodes.data(), m_rootNodeIdx, nLeafNodes, nInternalNodes);
