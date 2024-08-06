@@ -85,12 +85,14 @@ void PLOCNew::build(Context& context, std::vector<Triangle>& primitives)
 	const u32 nLeafNodes = primitiveCount;
 	const u32 nInternalNodes = nLeafNodes - 1;
 	const u32 nTotlaNodes = nLeafNodes + nInternalNodes;
+	bool swapBuffer = false;
+	u32 nClusters = primitiveCount;
 
 	d_leafNodes.resize(primitiveCount); d_leafNodes.reset();
 	d_bvhNodes.resize(nInternalNodes); d_bvhNodes.reset();
 	Oro::GpuMemory<u32> d_nodeIdx0(primitiveCount); d_nodeIdx0.reset();
 	Oro::GpuMemory<u32> d_nodeIdx1(primitiveCount); d_nodeIdx1.reset();
-
+	Oro::GpuMemory<u32> d_nMergedClusters(1); d_nMergedClusters.reset();
 	{
 		Kernel setupClusterKernel;
 
@@ -105,12 +107,32 @@ void PLOCNew::build(Context& context, std::vector<Triangle>& primitives)
 		m_timer.measure(TimerCodes::CalculateMortonCodesTime, [&]() { setupClusterKernel.launch(primitiveCount); });
 	}
 #if _DEBUG 
-
 	const auto dd = d_leafNodes.getData();
 	const auto dd1 = d_leafNodes.getData();
-
 #endif
 
+	while (nClusters > 1)
+	{
+
+		u32* nodeIndices0 = swapBuffer ? d_nodeIdx0.ptr() : d_nodeIdx1.ptr();
+		u32* nodeIndices1 = swapBuffer ? d_nodeIdx1.ptr() : d_nodeIdx0.ptr();
+		{
+			Kernel plocKernel;
+
+			buildKernelFromSrc(
+				plocKernel,
+				context.m_orochiDevice,
+				"../src/Ploc++Kernel.h",
+				"Ploc",
+				std::nullopt);
+
+			plocKernel.setArgs({ nodeIndices0, nodeIndices1, d_bvhNodes.ptr(), d_leafNodes.ptr(), d_nMergedClusters.ptr(), primitiveCount });
+			m_timer.measure(TimerCodes::CalculateMortonCodesTime, [&]() { plocKernel.launch(nClusters); });
+		}
+
+		nClusters = nClusters - d_nMergedClusters.getData()[0];
+		swapBuffer = !swapBuffer;
+	}
 
 }
 
