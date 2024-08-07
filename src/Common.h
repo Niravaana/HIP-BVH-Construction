@@ -584,5 +584,5 @@ DEVICE INLINE float atomicMaxFloat(float* addr, float value)
 
 	constexpr size_t size = sizeof(Ray);
 	constexpr u32 PlocBlockSize = 1024;
-	constexpr u32 PlocRadius = 6;
+	constexpr u32 PlocRadius = 10;
 }

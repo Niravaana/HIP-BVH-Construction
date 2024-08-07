@@ -52,6 +52,37 @@ bool Utility::checkLBvhCorrectness(const LbvhNode* bvhNodes, u32 rootIdx, u32 nL
 	return primIdxs.size() == nLeafNodes && uniqueCount == nLeafNodes;
 }
 
+bool Utility::checkPlocBvhCorrectness(const LbvhNode* bvhNodes, const PrimRef* leafNodes, u32 rootIdx, u32 nLeafNodes, u32 nInternalNodes)
+{
+	std::vector<u32> primIdxs;
+	{
+		u32 stack[32];
+		int top = 0;
+		stack[top++] = INVALID_NODE_IDX;
+		u32 nodeIdx = rootIdx;
+
+		while (nodeIdx != INVALID_NODE_IDX)
+		{
+			if (nodeIdx >= nInternalNodes)
+			{
+				primIdxs.push_back(leafNodes[nodeIdx].m_primIdx);
+			}
+			else
+			{
+				LbvhNode node = bvhNodes[nodeIdx];
+				stack[top++] = node.m_leftChildIdx;
+				stack[top++] = node.m_rightChildIdx;
+			}
+			nodeIdx = stack[--top];
+		}
+	}
+
+	std::sort(primIdxs.begin(), primIdxs.end());
+	int uniqueCount = std::unique(primIdxs.begin(), primIdxs.end()) - primIdxs.begin();
+
+	return primIdxs.size() == nLeafNodes && uniqueCount == nLeafNodes;
+}
+
 bool BvhConstruction::Utility::checkLBvh4Correctness(const Bvh4Node* bvhNodes, const PrimNode* wideLeafNodes, u32 rootIdx, u32 nInternalNodes)
 {
 	std::vector<u32> primIdxs;

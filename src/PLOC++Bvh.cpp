@@ -92,7 +92,9 @@ void PLOCNew::build(Context& context, std::vector<Triangle>& primitives)
 	d_bvhNodes.resize(nInternalNodes); d_bvhNodes.reset();
 	Oro::GpuMemory<u32> d_nodeIdx0(primitiveCount); d_nodeIdx0.reset();
 	Oro::GpuMemory<u32> d_nodeIdx1(primitiveCount); d_nodeIdx1.reset();
-	Oro::GpuMemory<u32> d_nMergedClusters(1); d_nMergedClusters.reset();
+	Oro::GpuMemory<u32> d_nMergedClusters(1); 
+	Oro::GpuMemory<u32> d_blockOffsetSum(1);
+	Oro::GpuMemory<u32> d_atomicBlockCounter(1);
 	{
 		Kernel setupClusterKernel;
 
@@ -109,13 +111,14 @@ void PLOCNew::build(Context& context, std::vector<Triangle>& primitives)
 #if _DEBUG 
 	const auto dd = d_leafNodes.getData();
 	const auto dd1 = d_leafNodes.getData();
+	const auto dd2 = d_nodeIdx0.getData();
 #endif
 
 	while (nClusters > 1)
 	{
-
-		u32* nodeIndices0 = swapBuffer ? d_nodeIdx0.ptr() : d_nodeIdx1.ptr();
-		u32* nodeIndices1 = swapBuffer ? d_nodeIdx1.ptr() : d_nodeIdx0.ptr();
+		d_nMergedClusters.reset(); d_blockOffsetSum.reset(); d_atomicBlockCounter.reset();
+		u32* nodeIndices0 = !swapBuffer ? d_nodeIdx0.ptr() : d_nodeIdx1.ptr();
+		u32* nodeIndices1 = !swapBuffer ? d_nodeIdx1.ptr() : d_nodeIdx0.ptr();
 		{
 			Kernel plocKernel;
 
@@ -126,14 +129,20 @@ void PLOCNew::build(Context& context, std::vector<Triangle>& primitives)
 				"Ploc",
 				std::nullopt);
 
-			plocKernel.setArgs({ nodeIndices0, nodeIndices1, d_bvhNodes.ptr(), d_leafNodes.ptr(), d_nMergedClusters.ptr(), primitiveCount });
+			plocKernel.setArgs({ nodeIndices0, nodeIndices1, d_bvhNodes.ptr(), d_leafNodes.ptr(), d_nMergedClusters.ptr(), d_blockOffsetSum.ptr(),  d_atomicBlockCounter.ptr(), nClusters, nInternalNodes });
 			m_timer.measure(TimerCodes::CalculateMortonCodesTime, [&]() { plocKernel.launch(nClusters); });
 		}
 
+		const auto tt = d_nMergedClusters.getData()[0];
 		nClusters = nClusters - d_nMergedClusters.getData()[0];
 		swapBuffer = !swapBuffer;
 	}
 
+	const auto h_bvhNodes = d_bvhNodes.getData();
+	const auto h_leafNodes = d_leafNodes.getData();
+	assert(Utility::checkPlocBvhCorrectness(h_bvhNodes.data(), h_leafNodes.data(), m_rootNodeIdx, nLeafNodes, nInternalNodes) == true);
+
+	std::cout << "Done Ploc";
 }
 
 void PLOCNew::traverseBvh(Context& context)
