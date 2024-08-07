@@ -12,7 +12,7 @@ This repo is implementation of different GPU BVH build methods and optimizations
    Basic idea is to split the AABB of the primitive along the maximum extent midpoint. The problem is leaf node explosion and the criteria to decide to split is user defined parameter. It is hard to find a generic value for this heuristic. Though,
    I dont see any performance boost in traversal at least for sponza.(Hard to verify my implementation as of now).
 8. [If-If/while-while traversal shaders](https://github.com/Niravaana/HIP-BVH-Construction/blob/main/src/TraversalKernel.h) - Based on the research paper [Understanding the Efficiency of Ray Traversal on GPUs – Kepler and Fermi Addendum](https://research.nvidia.com/sites/default/files/pubs/2012-06_Understanding-the-Efficiency/nvr-2012-02.pdf)
- 
+9. Ploc++ - Based on the [PLOC++ paper](https://www.intel.com/content/www/us/en/developer/articles/technical/ploc-for-bounding-volume.html) 
 # Reference Images
 
 ![test](https://github.com/user-attachments/assets/59203a5b-fa09-4afb-a696-ad854371f037)
