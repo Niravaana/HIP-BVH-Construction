@@ -529,3 +529,9 @@ void Utility::doEarlySplitClipping(std::vector<Triangle>& inputPrims, std::vecto
 		}
 	}
 }
+
+template <typename T, typename U>
+T Utility::divideRoundUp(T value, U factor)
+{
+	return (value + factor - 1) / factor;
+}
