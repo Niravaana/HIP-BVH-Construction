@@ -445,3 +445,87 @@ void Utility::generateTraversalHeatMap(std::vector<u32> rayCounter, u32 width, u
 	stbi_write_png("colorMap.png", width, height, 4, colorBuffer, width * 4);
 	free(colorBuffer);
 }
+
+void Utility::doEarlySplitClipping(std::vector<Triangle>& inputPrims, std::vector<PrimRef>& outPrimRefs, float saMax)
+{
+	std::queue<PrimRef> taskQueue;
+	for (int i = 0; i < inputPrims.size(); i++)
+	{
+		Aabb primAabb;
+		primAabb.grow(inputPrims[i].v1);
+		primAabb.grow(inputPrims[i].v2);
+		primAabb.grow(inputPrims[i].v3);
+		PrimRef ref = { i, primAabb };
+
+		taskQueue.push(ref);
+	}
+
+	while (!taskQueue.empty())
+	{
+		PrimRef ref = taskQueue.front(); taskQueue.pop();
+
+		if (ref.m_aabb.area() <= saMax)
+		{
+			outPrimRefs.push_back(ref);
+		}
+		else
+		{
+			const auto extent = ref.m_aabb.extent();
+			const int dim = ref.m_aabb.maximumExtentDim();
+			const auto centre = ref.m_aabb.center();
+			const auto offset = ref.m_aabb.m_min + (extent - centre);
+
+			float3 lMin = ref.m_aabb.m_min;
+			float3 lMax;
+			if (dim == 0)
+			{
+				lMax.x = centre.x;
+				lMax.y = ref.m_aabb.m_max.y;
+				lMax.z = ref.m_aabb.m_max.z;
+			}
+			if (dim == 1)
+			{
+				lMax.x = ref.m_aabb.m_max.x;
+				lMax.y = centre.y;
+				lMax.z = ref.m_aabb.m_max.z;
+			}
+			if (dim == 2)
+			{
+				lMax.x = ref.m_aabb.m_max.x;
+				lMax.y = ref.m_aabb.m_max.y;
+				lMax.z = centre.z;
+			}
+
+			Aabb L = { lMin, lMax };
+
+			float3 RMin;
+			float3 RMax = ref.m_aabb.m_max;
+			if (dim == 0)
+			{
+				RMin.x = centre.x;
+				RMin.y = ref.m_aabb.m_min.y;
+				RMin.z = ref.m_aabb.m_min.z;
+			}
+			if (dim == 1)
+			{
+				RMin.x = ref.m_aabb.m_min.x;
+				RMin.y = centre.y;
+				RMin.z = ref.m_aabb.m_min.z;
+			}
+			if (dim == 2)
+			{
+				RMin.x = ref.m_aabb.m_min.x;
+				RMin.y = ref.m_aabb.m_min.y;
+				RMin.z = centre.z;
+			}
+
+			Aabb R = { RMin, RMax };
+
+			PrimRef LRef = { ref.m_primIdx, L };
+			PrimRef RRef = { ref.m_primIdx, R };
+
+			taskQueue.push(LRef);
+			taskQueue.push(RRef);
+		}
+	}
+}
