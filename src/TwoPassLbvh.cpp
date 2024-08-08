@@ -26,7 +26,7 @@ T divideRoundUp(T value, U factor)
 	return (value + factor - 1) / factor;
 }
 
-static void doEarlySplitClipping(std::vector<Triangle>& inputPrims, std::vector<PrimRef>& outPrimRefs, float saMax = 9000.0f)
+static void doEarlySplitClipping(std::vector<Triangle>& inputPrims, std::vector<PrimRef>& outPrimRefs, float saMax = FltMax)
 {
 	std::queue<PrimRef> taskQueue;
 	for (int i = 0; i < inputPrims.size(); i++)
@@ -113,14 +113,16 @@ static void doEarlySplitClipping(std::vector<Triangle>& inputPrims, std::vector<
 
 void TwoPassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 {
-	
-#ifdef USE_PRIM_SPLITTING
-
 	d_triangleBuff.resize(primitives.size()); d_triangleBuff.reset();
 	OrochiUtils::copyHtoD(d_triangleBuff.ptr(), primitives.data(), primitives.size());
 
 	std::vector<PrimRef> h_primRefs;
+#ifdef USE_PRIM_SPLITTING
+	float saMax = 10.0f;
+	doEarlySplitClipping(primitives, h_primRefs, saMax);
+#else
 	doEarlySplitClipping(primitives, h_primRefs);
+#endif
 
 	const size_t primitiveCount = h_primRefs.size();
 	Oro::GpuMemory<PrimRef> d_primRefs(primitiveCount); d_primRefs.reset();
@@ -235,142 +237,6 @@ void TwoPassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 			m_timer.measure(TimerCodes::BvhBuildTime, [&]() { fitBvhNodesKernel.launch(nLeafNodes); });
 		}
 	}
-
-#if _DEBUG
-	const auto debugBuiltNodes = d_bvhNodes.getData();
-	const auto extent = d_sceneExtents.getData();
-#endif
-
-#else
-	const size_t primitiveCount = primitives.size();
-	d_triangleBuff.resize(primitiveCount); d_triangleBuff.reset();
-	d_triangleAabb.resize(primitiveCount); d_triangleAabb.reset(); //ToDo we might not need it.
-	OrochiUtils::copyHtoD(d_triangleBuff.ptr(), primitives.data(), primitives.size());
-
-	d_sceneExtents.resize(1); d_sceneExtents.reset();
-	{
-		Kernel centroidExtentsKernel;
-
-		buildKernelFromSrc(
-			centroidExtentsKernel,
-			context.m_orochiDevice,
-			"../src/CommonBlocksKernel.h",
-			"CalculateSceneExtents",
-			std::nullopt);
-
-		centroidExtentsKernel.setArgs({ d_triangleBuff.ptr(), d_triangleAabb.ptr(), d_sceneExtents.ptr(), primitiveCount });
-		m_timer.measure(TimerCodes::CalculateCentroidExtentsTime, [&]() { centroidExtentsKernel.launch(primitiveCount); });
-	}
-
-#if _DEBUG
-	const auto debugTriangle = d_triangleBuff.getData();
-	const auto debugAabb = d_triangleAabb.getData();
-	const auto debugExtent = d_sceneExtents.getData()[0];
-#endif
-
-	d_mortonCodeKeys.resize(primitiveCount); d_mortonCodeKeys.reset();
-	d_mortonCodeValues.resize(primitiveCount); d_mortonCodeValues.reset();
-	d_sortedMortonCodeKeys.resize(primitiveCount); d_sortedMortonCodeKeys.reset();
-	d_sortedMortonCodeValues.resize(primitiveCount); d_sortedMortonCodeValues.reset();
-	{
-		Kernel calulateMortonCodesKernel;
-
-		buildKernelFromSrc(
-			calulateMortonCodesKernel,
-			context.m_orochiDevice,
-			"../src/CommonBlocksKernel.h",
-			"CalculateMortonCodes",
-			std::nullopt);
-
-		calulateMortonCodesKernel.setArgs({ d_triangleAabb.ptr(), d_sceneExtents.ptr() , d_mortonCodeKeys.ptr(), d_mortonCodeValues.ptr(), primitiveCount });
-		m_timer.measure(TimerCodes::CalculateMortonCodesTime, [&]() { calulateMortonCodesKernel.launch(primitiveCount); });
-	}
-
-#if _DEBUG
-	const auto debugMortonCodes = d_mortonCodeKeys.getData();
-#endif
-	{
-		OrochiUtils oroUtils;
-		Oro::RadixSort sort(context.m_orochiDevice, oroUtils, 0, "../dependencies/Orochi/ParallelPrimitives/RadixSortKernels.h", "../dependencies/Orochi");
-
-		Oro::RadixSort::KeyValueSoA srcGpu{};
-		Oro::RadixSort::KeyValueSoA dstGpu{};
-		static constexpr auto startBit{ 0 };
-		static constexpr auto endBit{ 32 };
-		static constexpr auto stream = 0;
-
-		srcGpu.key = d_mortonCodeKeys.ptr();
-		srcGpu.value = d_mortonCodeValues.ptr();
-
-		dstGpu.key = d_sortedMortonCodeKeys.ptr();
-		dstGpu.value = d_sortedMortonCodeValues.ptr();
-
-		m_timer.measure(SortingTime, [&]() {
-			sort.sort(srcGpu, dstGpu, static_cast<int>(primitiveCount), startBit, endBit, stream); });
-	}
-
-#if _DEBUG
-	const auto debugSortedMortonCodes = d_sortedMortonCodeKeys.getData();
-	const auto debugSortedMortonCodesVal = d_sortedMortonCodeValues.getData();
-#endif
-
-	const u32 nLeafNodes = primitiveCount;
-	const u32 nInternalNodes = nLeafNodes - 1;
-	const u32 nTotalNodes = nInternalNodes + nLeafNodes;
-	m_nInternalNodes = nInternalNodes;
-	d_bvhNodes.resize(nTotalNodes);
-	Oro::GpuMemory<u32> d_parentIdxs(nTotalNodes);
-	{
-		{
-			Kernel initBvhNodesKernel;
-
-			buildKernelFromSrc(
-				initBvhNodesKernel,
-				context.m_orochiDevice,
-				"../src/TwoPassLbvhKernel.h",
-				"InitBvhNodes",
-				std::nullopt);
-
-			initBvhNodesKernel.setArgs({ d_triangleBuff.ptr(), d_bvhNodes.ptr(), d_parentIdxs.ptr(), d_sortedMortonCodeValues.ptr(), nLeafNodes, nInternalNodes });
-			m_timer.measure(TimerCodes::BvhBuildTime, [&]() { initBvhNodesKernel.launch(nLeafNodes); });
-		}
-
-#if _DEBUG
-		const auto debugNodes = d_bvhNodes.getData();
-#endif
-
-		{
-			Kernel bvhBuildKernel;
-
-			buildKernelFromSrc(
-				bvhBuildKernel,
-				context.m_orochiDevice,
-				"../src/TwoPassLbvhKernel.h",
-				"BvhBuild",
-				std::nullopt);
-
-			bvhBuildKernel.setArgs({ d_bvhNodes.ptr(), d_parentIdxs.ptr(), d_sortedMortonCodeKeys.ptr(), nLeafNodes, nInternalNodes });
-			m_timer.measure(TimerCodes::BvhBuildTime, [&]() { bvhBuildKernel.launch(nInternalNodes); });
-		}
-
-#if _DEBUG
-		const auto debugBuiltNodes = d_bvhNodes.getData();
-#endif
-
-		d_flags.resize(nTotalNodes); d_flags.reset();
-		{
-			Kernel fitBvhNodesKernel;
-
-			buildKernelFromSrc(
-				fitBvhNodesKernel,
-				context.m_orochiDevice,
-				"../src/TwoPassLbvhKernel.h",
-				"FitBvhNodes",
-				std::nullopt);
-
-			fitBvhNodesKernel.setArgs({ d_bvhNodes.ptr(), d_parentIdxs.ptr(), d_flags.ptr(), nLeafNodes, nInternalNodes });
-			m_timer.measure(TimerCodes::BvhBuildTime, [&]() { fitBvhNodesKernel.launch(nLeafNodes); });
-		}
 		const auto h_bvhNodes = d_bvhNodes.getData();
 #if _DEBUG
 		
@@ -415,7 +281,6 @@ void TwoPassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 		const auto wideBvhNodes = d_wideBvhNodes.getData();
 		const auto wideLeafNodes = d_wideLeafNodes.getData();
 		auto internalNodeOffset = d_internalNodeOffset.getData()[0];
-		auto tQ = d_taskQ.getData();
 
 		assert(Utility::checkLBvh4Correctness(wideBvhNodes.data(), wideLeafNodes.data(), m_rootNodeIdx, nInternalNodes) == true);
 		m_cost = Utility::calculatebvh4Cost(wideBvhNodes.data(), h_bvhNodes.data(), m_rootNodeIdx, internalNodeOffset, nInternalNodes);
@@ -448,8 +313,6 @@ void TwoPassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 		m_cost = Utility::calculatebvh4Cost(wideBvhNodes.data(), h_bvhNodes.data(), m_rootNodeIdx, internalNodeOffset, nInternalNodes);
 
 #endif //USE_GPU_WIDE_COLLAPSE 
-	}
-#endif // prim splitting #ifdef 
 }
 
 void TwoPassLbvh::traverseBvh(Context& context)
