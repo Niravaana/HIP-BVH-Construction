@@ -3,7 +3,7 @@
 
 using namespace BvhConstruction;
 
-extern "C" __global__ void SetupClusters(PrimRef* __restrict__ primRefs, u32* __restrict__ sortedPrimIdx, Aabb* __restrict__ primitivesAabb, u32* __restrict__ nodeIndices, u32 primCount)
+extern "C" __global__ void SetupClusters(LbvhNode* bvhNodes, PrimRef* __restrict__ primRefs, u32* __restrict__ sortedPrimIdx, Aabb* __restrict__ primitivesAabb, int* __restrict__ nodeIndices, u32 primCount)
 {
 	u32 gIdx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (gIdx >= primCount) return;
@@ -12,6 +12,13 @@ extern "C" __global__ void SetupClusters(PrimRef* __restrict__ primRefs, u32* __
 	primRefs[gIdx].m_primIdx = primIdx;
 	primRefs[gIdx].m_aabb = primitivesAabb[primIdx];
 	nodeIndices[gIdx] = gIdx + (primCount - 1);
+
+	if (gIdx < (primCount - 1))
+	{
+		bvhNodes[gIdx].m_leftChildIdx = INVALID_NODE_IDX;
+		bvhNodes[gIdx].m_rightChildIdx = INVALID_NODE_IDX;
+		bvhNodes[gIdx].m_aabb.reset();
+	}
 }
 
 template <typename T, typename U>
@@ -20,13 +27,13 @@ DEVICE T divideRoundUp(T value, U factor)
 	return (value + factor - 1) / factor;
 }
 
-DEVICE int binaryWarpPrefixSum(bool warpVal, u32* counter)
+DEVICE int binaryWarpPrefixSum(bool warpVal, int* counter)
 {
-	const u32	   laneIndex = threadIdx.x & (WarpSize - 1);
+	const int	   laneIndex = threadIdx.x & (WarpSize - 1);
 	const uint64_t warpBallot = __ballot(warpVal);
-	const u32	   warpCount = __popcll(warpBallot);
-	const u32	   warpSum = __popcll(warpBallot & ((1ull << laneIndex) - 1ull));
-	u32			   warpOffset;
+	const int	   warpCount = __popcll(warpBallot);
+	const int	   warpSum = __popcll(warpBallot & ((1ull << laneIndex) - 1ull));
+	int			   warpOffset;
 	if (laneIndex == __ffsll(static_cast<unsigned long long>(warpBallot)) - 1)
 		warpOffset = atomicAdd(counter, warpCount);
 	warpOffset = __shfl(warpOffset, __ffsll(static_cast<unsigned long long>(warpBallot)) - 1);
@@ -39,16 +46,16 @@ constexpr DEVICE T Log2(T n)
 	return n <= 1 ? 0 : 1 + Log2((n + 1) / 2);
 }
 
-DEVICE int binaryBlockPrefixSum(bool blockVal, u32* blockCache)
+DEVICE int binaryBlockPrefixSum(bool blockVal, int* blockCache)
 {
-	const u32 laneIndex = threadIdx.x & (WarpSize - 1);
-	const u32 warpIndex = threadIdx.x >> Log2(WarpSize);
-	const u32 warpsPerBlock = divideRoundUp(static_cast<int>(blockDim.x), WarpSize);
+	const int laneIndex = threadIdx.x & (WarpSize - 1);
+	const int warpIndex = threadIdx.x >> Log2(WarpSize);
+	const int warpsPerBlock = divideRoundUp(static_cast<int>(blockDim.x), WarpSize);
 
-	u32			   blockValue = blockVal;
+	int			   blockValue = blockVal;
 	const uint64_t warpBallot = __ballot(blockVal);
-	const u32	   warpCount = __popcll(warpBallot);
-	const u32	   warpSum = __popcll(warpBallot & ((1ull << laneIndex) - 1ull));
+	const int	   warpCount = __popcll(warpBallot);
+	const int	   warpSum = __popcll(warpBallot & ((1ull << laneIndex) - 1ull));
 
 	if (laneIndex == 0) blockCache[warpIndex] = warpCount;
 
@@ -67,35 +74,37 @@ DEVICE int binaryBlockPrefixSum(bool blockVal, u32* blockCache)
 	return blockCache[warpIndex] + warpSum - warpCount + blockVal;
 }
 
-extern "C" __global__ void Ploc(u32* nodeIndices0, u32* nodeIndices1, LbvhNode* bvhNodes, PrimRef* primRefs, u32* nMergedClusters, u32* blockOffsetSum, u32* atomicBlockCounter, u32 nClusters, u32 nInternalNodes)
+extern "C" __global__ void Ploc(int* nodeIndices0, int* nodeIndices1, LbvhNode* bvhNodes, PrimRef* primRefs, int* nMergedClusters, int* blockOffsetSum, int* atomicBlockCounter, u32 nClusters, u32 nInternalNodes)
 {
-	u32 gIdx = blockIdx.x * blockDim.x + threadIdx.x;
-	u32 blockOffset = blockDim.x * blockIdx.x;
+	int gIdx = blockIdx.x * blockDim.x + threadIdx.x;
+	int blockOffset = blockDim.x * blockIdx.x;
 	if (gIdx >= nClusters) return;
 
 	/*if PlocRadius is 2 then we need to read 4(2 * plocRadius elements to the right and 2 * plocRadius at the end of block size, the original paper refers to as chunk.
 	  Because of this neighbour research limited to chunk we dont need separate global prefix sum pass as original ploc method. This is the reason we can combine 
 	  Neighbour search, merge and compact pass in one kernel.*/
-	__shared__ u8 aabbSharedMem[sizeof(Aabb) * (PlocBlockSize + 4 * PlocRadius)];
+	alignas(alignof(Aabb)) __shared__ u8 aabbSharedMem[sizeof(Aabb) * (PlocBlockSize + 4 * PlocRadius)];
 	__shared__ u64 neighbourIndicesSharedMem[PlocBlockSize + 4 * PlocRadius];//block size of neighbouring node Indices from search of nodeIndices0
-	__shared__ u32 nodeIndicesSharedMem[PlocBlockSize + 4 * PlocRadius]; //block size of node Indices from nodeIndices0
+	__shared__ int nodeIndicesSharedMem[PlocBlockSize + 4 * PlocRadius]; //block size of node Indices from nodeIndices0
 	__shared__ int localBlockOffset; // Each block will have a offset, use this variable to propogate localBlockOffset to all blocks
 
 	Aabb* ptrAabbSharedMem = reinterpret_cast<Aabb*>(aabbSharedMem) + 2 * PlocRadius;
 	u64* ptrNeighbourIndices  = neighbourIndicesSharedMem + 2 * PlocRadius;
-	u32* ptrNodeIndices = nodeIndicesSharedMem + 2 * PlocRadius;
+	int* ptrNodeIndices = nodeIndicesSharedMem + 2 * PlocRadius;
 
-	for (int neighbourIdx = threadIdx.x - 2 * PlocRadius; neighbourIdx < blockDim.x + 2 * PlocRadius; neighbourIdx += blockDim.x)
+	for (int neighbourIdx = int(threadIdx.x) - 2 * PlocRadius; neighbourIdx < int(blockDim.x) + 2 * PlocRadius; neighbourIdx += blockDim.x)
 	{
 		int clusterIdx = neighbourIdx + blockOffset; //global clusterIdxes
 		if (clusterIdx >= 0 && clusterIdx < nClusters)
 		{
-			u32 nodeIdx = nodeIndices0[clusterIdx];
+			int nodeIdx = nodeIndices0[clusterIdx];
 			ptrAabbSharedMem[neighbourIdx] = (nodeIdx >= nInternalNodes) ? primRefs[nodeIdx - nInternalNodes].m_aabb : bvhNodes[nodeIdx].m_aabb;
 			ptrNodeIndices[neighbourIdx] = nodeIdx;
 		}
 		else
 		{
+			//Aabb x;
+			//ptrAabbSharedMem[neighbourIdx] = x;
 			ptrAabbSharedMem[neighbourIdx].m_min = {-FltMax, -FltMax , -FltMax };
 			ptrAabbSharedMem[neighbourIdx].m_max = { FltMax, FltMax , FltMax };
 			ptrNodeIndices[neighbourIdx] = INVALID_NODE_IDX;
@@ -108,7 +117,7 @@ extern "C" __global__ void Ploc(u32* nodeIndices0, u32* nodeIndices1, LbvhNode* 
 	/*distance between i, j will be calculated in right search and similarly j, i will be calculated in left search which will be same
 	  So distance is commutative. Hence we encode both in same loop by constructing 64 bit key and high 32 bits will hold area and lower 32 bits will hold i or j index.
 	  Finally we store minAreaAndIndex in ptrNeighbourIndices[tId] from which we can decode back index*/
-	for (int tId = threadIdx.x - 2 * PlocRadius; tId < blockDim.x + PlocRadius; tId += blockDim.x)
+	for (int tId = int(threadIdx.x) - 2 * PlocRadius; tId < int(blockDim.x) + PlocRadius; tId += blockDim.x)
 	{
 		u64 minAreadAndIndex = u64(-1);
 		Aabb aabb = ptrAabbSharedMem[tId];
@@ -120,9 +129,8 @@ extern "C" __global__ void Ploc(u32* nodeIndices0, u32* nodeIndices1, LbvhNode* 
 			float area = neighbourAabb.area();
 
 			u64 encode0 = (u64(__float_as_int(area)) << 32ull) | u64(neighbourIdx + blockOffset);
-			u64 encode1 = (u64(__float_as_int(area)) << 32ull) | u64(tId + blockOffset);
-
 			minAreadAndIndex = min(minAreadAndIndex, encode0);
+			u64 encode1 = (u64(__float_as_int(area)) << 32ull) | u64(tId + blockOffset);
 			atomicMin(&ptrNeighbourIndices[neighbourIdx], encode1);
 		}
 		atomicMin(&ptrNeighbourIndices[tId], minAreadAndIndex);
@@ -130,27 +138,25 @@ extern "C" __global__ void Ploc(u32* nodeIndices0, u32* nodeIndices1, LbvhNode* 
 
 	__syncthreads();
 
-	u32 nodeIdx = INVALID_NODE_IDX;
+	int nodeIdx = INVALID_NODE_IDX;
 
 	if (gIdx < nClusters)
 	{
-		u32 currentClusterIdx = threadIdx.x;
-		u32 leftChildIdx = ptrNodeIndices[currentClusterIdx];
-		u32 neighbourIdx = (ptrNeighbourIndices[currentClusterIdx] & 0xffffffff) - blockOffset;
-		u32 rightChildIdx = ptrNodeIndices[neighbourIdx];
-		u32 neighboursNeighbourIDx = (ptrNeighbourIndices[neighbourIdx] & 0xffffffff) - blockOffset;
+		int leftChildIdx = ptrNodeIndices[threadIdx.x];
+		int neighbourIdx = (ptrNeighbourIndices[threadIdx.x] & 0xffffffff) - blockOffset;
+		int rightChildIdx = ptrNodeIndices[neighbourIdx];
+		int neighboursNeighbourIDx = (ptrNeighbourIndices[neighbourIdx] & 0xffffffff) - blockOffset;
 
 		/* Now we will check conditions on merge
 		   current cluster = threadIdx.x should be equal to neighboursNeighbourIDx i,e cluster neighbour pairs we found should be mutual.
 		   For threads having smaller cluster index will only will merge ie, t1 dealing with pair (2,4) and t6 with (4,2) then t1 will do
 		   the merge copy new node at cluster index 2 and t6 will mark cluster index 4 invalid */
 		bool merge = false;
-		if (currentClusterIdx == neighboursNeighbourIDx)
+		if (int(threadIdx.x) == neighboursNeighbourIDx)
 		{
 			/*(Point A) For our example t1 and t6 will come here but t6 wont go in if so do nothing
 			So for t6 the nodeIdx will be invalid value*/
-			if (currentClusterIdx < neighbourIdx)
-				merge = true;
+			if (int(threadIdx.x) < neighbourIdx) merge = true;
 		}
 		else
 		{
@@ -170,12 +176,11 @@ extern "C" __global__ void Ploc(u32* nodeIndices0, u32* nodeIndices1, LbvhNode* 
 		int mergedNodeIdx = nClusters - 2 - binaryWarpPrefixSum(merge, nMergedClusters);
 		if (merge)
 		{
-			Aabb aabb = ptrAabbSharedMem[currentClusterIdx];
+			Aabb aabb = ptrAabbSharedMem[threadIdx.x];
 			aabb.grow(ptrAabbSharedMem[neighbourIdx]);
-			LbvhNode& newNode = bvhNodes[mergedNodeIdx];
-			newNode.m_leftChildIdx = leftChildIdx;
-			newNode.m_rightChildIdx = rightChildIdx;
-			newNode.m_aabb = aabb;
+			bvhNodes[mergedNodeIdx].m_leftChildIdx = leftChildIdx;
+			bvhNodes[mergedNodeIdx].m_rightChildIdx = rightChildIdx;
+			bvhNodes[mergedNodeIdx].m_aabb = aabb;
 			nodeIdx = mergedNodeIdx;
 		}
 	}
@@ -189,7 +194,7 @@ extern "C" __global__ void Ploc(u32* nodeIndices0, u32* nodeIndices1, LbvhNode* 
 	  We calculate nodes that dont have invalid idx. Again we use binary prefix sum on condition nodeIdx != invalid idx but for the block.
 	*/
 
-	int newblockOffset = binaryBlockPrefixSum(nodeIdx != INVALID_NODE_IDX, ptrNodeIndices);
+	int newblockOffset = binaryBlockPrefixSum(nodeIdx != INVALID_NODE_IDX, nodeIndicesSharedMem);
 	
 	/*
 	  We want to find new positions(cluster Indices) in nodeIndices array where we want to copy merged node and the nodes which are still remaining to be processed(which did not found any neighbours yet).
@@ -198,9 +203,10 @@ extern "C" __global__ void Ploc(u32* nodeIndices0, u32* nodeIndices1, LbvhNode* 
 	  We do this below using one thread in block to calculate blockOffset and it waits on the atomic counter that is set by the previous block thread.
 	*/
 
-	if (threadIdx.x == blockDim.x)
+	if (threadIdx.x == blockDim.x - 1)
 	{
-		while (atomicAdd(atomicBlockCounter, 0) < blockIdx.x); //wait for prev block thread to increament counter
+		while (atomicAdd(atomicBlockCounter, 0) < blockIdx.x)
+			; //wait for prev block thread to increament counter
 		localBlockOffset = atomicAdd(blockOffsetSum, newblockOffset); // If we are block3 then get sum of blockOffset0 + blockOffset1 + blockOffset2
 		atomicAdd(atomicBlockCounter, 1);
 	}
@@ -214,7 +220,7 @@ extern "C" __global__ void Ploc(u32* nodeIndices0, u32* nodeIndices1, LbvhNode* 
 	{
 		if (nodeIdx != INVALID_NODE_IDX)
 		{
-			u32 newClusterIdx = localBlockOffset + newblockOffset - 1;
+			int newClusterIdx = localBlockOffset + newblockOffset - 1;
 			nodeIndices1[newClusterIdx] = nodeIdx; //We copy node indices after compaction other buffer
 		}
 	}

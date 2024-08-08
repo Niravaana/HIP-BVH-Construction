@@ -14,7 +14,7 @@ using namespace BvhConstruction;
 
 void PLOCNew::build(Context& context, std::vector<Triangle>& primitives)
 {
-	const size_t primitiveCount = primitives.size();
+ 	const size_t primitiveCount = primitives.size();
 	d_triangleBuff.resize(primitiveCount); d_triangleBuff.reset();
 	d_triangleAabb.resize(primitiveCount); d_triangleAabb.reset(); //ToDo we might not need it.
 	OrochiUtils::copyHtoD(d_triangleBuff.ptr(), primitives.data(), primitives.size());
@@ -90,11 +90,12 @@ void PLOCNew::build(Context& context, std::vector<Triangle>& primitives)
 
 	d_leafNodes.resize(primitiveCount); d_leafNodes.reset();
 	d_bvhNodes.resize(nInternalNodes); d_bvhNodes.reset();
-	Oro::GpuMemory<u32> d_nodeIdx0(primitiveCount); d_nodeIdx0.reset();
-	Oro::GpuMemory<u32> d_nodeIdx1(primitiveCount); d_nodeIdx1.reset();
-	Oro::GpuMemory<u32> d_nMergedClusters(1); 
-	Oro::GpuMemory<u32> d_blockOffsetSum(1);
-	Oro::GpuMemory<u32> d_atomicBlockCounter(1);
+
+	Oro::GpuMemory<int> d_nodeIdx0(primitiveCount); d_nodeIdx0.reset();
+	Oro::GpuMemory<int> d_nodeIdx1(primitiveCount); d_nodeIdx1.reset();
+	Oro::GpuMemory<int> d_nMergedClusters(1); 
+	Oro::GpuMemory<int> d_blockOffsetSum(1);
+	Oro::GpuMemory<int> d_atomicBlockCounter(1);
 	{
 		Kernel setupClusterKernel;
 
@@ -105,20 +106,20 @@ void PLOCNew::build(Context& context, std::vector<Triangle>& primitives)
 			"SetupClusters",
 			std::nullopt);
 
-		setupClusterKernel.setArgs({ d_leafNodes.ptr(), d_sortedMortonCodeValues.ptr() , d_triangleAabb.ptr(), d_nodeIdx0.ptr(), primitiveCount });
+		setupClusterKernel.setArgs({d_bvhNodes.ptr(),  d_leafNodes.ptr(), d_sortedMortonCodeValues.ptr() , d_triangleAabb.ptr(), d_nodeIdx0.ptr(), primitiveCount });
 		m_timer.measure(TimerCodes::CalculateMortonCodesTime, [&]() { setupClusterKernel.launch(primitiveCount); });
 	}
-#if _DEBUG 
-	const auto dd = d_leafNodes.getData();
-	const auto dd1 = d_leafNodes.getData();
-	const auto dd2 = d_nodeIdx0.getData();
-#endif
+//#if _DEBUG 
+//	const auto dd = d_leafNodes.getData();
+//	const auto dd1 = d_leafNodes.getData();
+//	const auto dd2 = d_nodeIdx0.getData();
+//#endif
 
 	while (nClusters > 1)
 	{
 		d_nMergedClusters.reset(); d_blockOffsetSum.reset(); d_atomicBlockCounter.reset();
-		u32* nodeIndices0 = !swapBuffer ? d_nodeIdx0.ptr() : d_nodeIdx1.ptr();
-		u32* nodeIndices1 = !swapBuffer ? d_nodeIdx1.ptr() : d_nodeIdx0.ptr();
+		int* nodeIndices0 = !swapBuffer ? d_nodeIdx0.ptr() : d_nodeIdx1.ptr();
+		int* nodeIndices1 = !swapBuffer ? d_nodeIdx1.ptr() : d_nodeIdx0.ptr();
 		{
 			Kernel plocKernel;
 
@@ -129,10 +130,11 @@ void PLOCNew::build(Context& context, std::vector<Triangle>& primitives)
 				"Ploc",
 				std::nullopt);
 
-			plocKernel.setArgs({ nodeIndices0, nodeIndices1, d_bvhNodes.ptr(), d_leafNodes.ptr(), d_nMergedClusters.ptr(), d_blockOffsetSum.ptr(),  d_atomicBlockCounter.ptr(), nClusters, nInternalNodes });
+			plocKernel.setArgs({ nodeIndices0, nodeIndices1, d_bvhNodes.ptr(), d_leafNodes.ptr(), d_nMergedClusters.ptr(), d_blockOffsetSum.ptr(),  d_atomicBlockCounter.ptr(), nClusters, nInternalNodes});
 			m_timer.measure(TimerCodes::CalculateMortonCodesTime, [&]() { plocKernel.launch(nClusters); });
 		}
 
+		//if (nClusters <= PlocBlockSize) break;
 		const auto tt = d_nMergedClusters.getData()[0];
 		nClusters = nClusters - d_nMergedClusters.getData()[0];
 		swapBuffer = !swapBuffer;
