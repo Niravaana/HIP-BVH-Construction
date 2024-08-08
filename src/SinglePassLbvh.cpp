@@ -12,10 +12,21 @@ using namespace BvhConstruction;
 
 void SinglePassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 {
-	const size_t primitiveCount = primitives.size();
-	d_triangleBuff.resize(primitiveCount); d_triangleBuff.reset();
-	d_triangleAabb.resize(primitiveCount); d_triangleAabb.reset(); //ToDo we might not need it.
+
+	d_triangleBuff.resize(primitives.size()); d_triangleBuff.reset();
 	OrochiUtils::copyHtoD(d_triangleBuff.ptr(), primitives.data(), primitives.size());
+
+	std::vector<PrimRef> h_primRefs;
+#ifdef USE_PRIM_SPLITTING
+	float saMax = 10.0f;
+	Utility::doEarlySplitClipping(primitives, h_primRefs, saMax);
+#else
+	Utility::doEarlySplitClipping(primitives, h_primRefs);
+#endif
+
+	const size_t primitiveCount = h_primRefs.size();
+	Oro::GpuMemory<PrimRef> d_primRefs(primitiveCount); d_primRefs.reset();
+	OrochiUtils::copyHtoD(d_primRefs.ptr(), h_primRefs.data(), primitiveCount);
 
 	d_sceneExtents.resize(1); d_sceneExtents.reset();
 	{
@@ -25,18 +36,12 @@ void SinglePassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 			centroidExtentsKernel,
 			context.m_orochiDevice,
 			"../src/CommonBlocksKernel.h",
-			"CalculateSceneExtents",
+			"CalculatePrimRefExtents",
 			std::nullopt);
 
-		centroidExtentsKernel.setArgs({ d_triangleBuff.ptr(), d_triangleAabb.ptr(), d_sceneExtents.ptr(), primitiveCount });
+		centroidExtentsKernel.setArgs({ d_primRefs.ptr() , d_sceneExtents.ptr(), primitiveCount });
 		m_timer.measure(TimerCodes::CalculateCentroidExtentsTime, [&]() { centroidExtentsKernel.launch(primitiveCount); });
 	}
-
-#if _DEBUG
-	const auto debugTriangle = d_triangleBuff.getData();
-	const auto debugAabb = d_triangleAabb.getData();
-	const auto debugExtent = d_sceneExtents.getData()[0];
-#endif
 
 	d_mortonCodeKeys.resize(primitiveCount); d_mortonCodeKeys.reset();
 	d_mortonCodeValues.resize(primitiveCount); d_mortonCodeValues.reset();
@@ -49,16 +54,15 @@ void SinglePassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 			calulateMortonCodesKernel,
 			context.m_orochiDevice,
 			"../src/CommonBlocksKernel.h",
-			"CalculateMortonCodes",
+			"CalculateMortonCodesPrimRef",
 			std::nullopt);
 
-		calulateMortonCodesKernel.setArgs({ d_triangleAabb.ptr(), d_sceneExtents.ptr() , d_mortonCodeKeys.ptr(), d_mortonCodeValues.ptr(), primitiveCount });
+		calulateMortonCodesKernel.setArgs({ d_primRefs.ptr(), d_sceneExtents.ptr() , d_mortonCodeKeys.ptr(), d_mortonCodeValues.ptr(), primitiveCount });
 		m_timer.measure(TimerCodes::CalculateMortonCodesTime, [&]() { calulateMortonCodesKernel.launch(primitiveCount); });
 	}
 
-#if _DEBUG
-	const auto debugMortonCodes = d_mortonCodeKeys.getData();
-#endif
+	const auto debugPrimRefs = d_primRefs.getData();
+	const auto ext = d_sceneExtents.getData();
 	{
 		OrochiUtils oroUtils;
 		Oro::RadixSort sort(context.m_orochiDevice, oroUtils, 0, "../dependencies/Orochi/ParallelPrimitives/RadixSortKernels.h", "../dependencies/Orochi");
@@ -120,8 +124,8 @@ void SinglePassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 			m_timer.measure(TimerCodes::BvhBuildTime, [&]() { bvhBuildAndFitKernel.launch(nLeafNodes); });
 			m_rootNodeIdx = d_bvhNodeCounter.getData()[nLeafNodes - 1];
 		}
-#if _DEBUG
 		const auto h_bvhNodes = d_bvhNodes.getData();
+#if _DEBUG
 		assert(Utility::checkLbvhRootAabb(h_bvhNodes.data(), m_rootNodeIdx, nLeafNodes, nInternalNodes) == true);
 		assert(Utility::checkLBvhCorrectness(h_bvhNodes.data(), m_rootNodeIdx, nLeafNodes, nInternalNodes) == true);
 		m_cost = Utility::calculateLbvhCost(h_bvhNodes.data(), m_rootNodeIdx, nLeafNodes, nInternalNodes);
