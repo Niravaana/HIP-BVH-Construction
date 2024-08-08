@@ -30,5 +30,8 @@ namespace BvhConstruction
 		static void generateTraversalHeatMap(std::vector<u32> rayCounter, u32 width, u32 height);
 
 		static void doEarlySplitClipping(std::vector<Triangle>& inputPrims, std::vector<PrimRef>& outPrimRefs, float saMax = FltMax);
+
+		template <typename T, typename U>
+		static T divideRoundUp(T value, U factor);
 	};
 }
