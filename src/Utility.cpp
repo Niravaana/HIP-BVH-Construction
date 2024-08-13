@@ -59,7 +59,7 @@ bool Utility::checkLBvhCorrectness(const LbvhNode* bvhNodes, u32 rootIdx, u32 nL
 	return primIdxs.size() == nLeafNodes && uniqueCount == nLeafNodes;
 }
 
-bool Utility::checkPlocBvhCorrectness(const LbvhNode* bvhNodes, const PrimRef* leafNodes, u32 rootIdx, u32 nLeafNodes, u32 nInternalNodes)
+bool Utility::checkPlocBvh2Correctness(const LbvhNode* bvhNodes, const PrimRef* leafNodes, u32 rootIdx, u32 nLeafNodes, u32 nInternalNodes)
 {
 	std::vector<uint32_t> primIdxs;
 	{
@@ -348,7 +348,7 @@ float Utility::calculateLbvhCost(const LbvhNode* bvhNodes, u32 rootIdx, u32 nLea
 	return cost;
 }
 
-float BvhConstruction::Utility::calculatebvh4Cost(const Bvh4Node* bvhNodes, const LbvhNode* bvh2Nodes, u32 rootIdx, u32 totalNodes, u32 nInternalNodes)
+float BvhConstruction::Utility::calculatebvh4Cost(const Bvh4Node* bvhNodes, const PrimNode* bvh4LeafNodes, Aabb* primAabbs,u32 rootIdx, u32 totalNodes, u32 nInternalNodes)
 {
 	u32 nodeIdx = rootIdx;
 	float cost = 0.0f;
@@ -390,7 +390,7 @@ float BvhConstruction::Utility::calculatebvh4Cost(const Bvh4Node* bvhNodes, cons
 
 	for (int i = 0; i < nInternalNodes + 1; i++)
 	{
-		cost += bvh2Nodes[i + nInternalNodes].m_aabb.area() * rootInvArea;
+		cost += primAabbs[bvh4LeafNodes[i].m_primIdx].area() * rootInvArea;
 	}
 	return cost;
 }

@@ -143,14 +143,13 @@ void TwoPassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 		}
 	}
 		const auto h_bvhNodes = d_bvhNodes.getData();
+
 #if _DEBUG
 		
 		assert(Utility::checkLbvhRootAabb(h_bvhNodes.data(), m_rootNodeIdx, nLeafNodes, nInternalNodes) == true);
 		assert(Utility::checkLBvhCorrectness(h_bvhNodes.data(), m_rootNodeIdx, nLeafNodes, nInternalNodes) == true);
 		m_cost = Utility::calculateLbvhCost(h_bvhNodes.data(), m_rootNodeIdx, nLeafNodes, nInternalNodes);
 #endif
-
-#ifdef USE_GPU_WIDE_COLLAPSE
 
 		Oro::GpuMemory<Bvh4Node> d_wideBvhNodes(2 * primitiveCount); d_wideBvhNodes.reset();
 		Oro::GpuMemory<PrimNode> d_wideLeafNodes(primitiveCount); d_wideLeafNodes.reset();
@@ -186,38 +185,10 @@ void TwoPassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 		const auto wideBvhNodes = d_wideBvhNodes.getData();
 		const auto wideLeafNodes = d_wideLeafNodes.getData();
 		auto internalNodeOffset = d_internalNodeOffset.getData()[0];
+		auto triangleAabb = d_triangleAabb.getData();
 
 		assert(Utility::checkLBvh4Correctness(wideBvhNodes.data(), wideLeafNodes.data(), m_rootNodeIdx, nInternalNodes) == true);
-		m_cost = Utility::calculatebvh4Cost(wideBvhNodes.data(), h_bvhNodes.data(), m_rootNodeIdx, internalNodeOffset, nInternalNodes);
-
-#else
-
-		std::vector<Bvh4Node> wideBvhNodes(2 * primitiveCount); //will hold internal nodes for wide bvh
-		std::vector<PrimNode> wideLeafNodes(primitiveCount); // leaf nodes of wide bvh
-		uint2 invTask = { INVALID_NODE_IDX, INVALID_NODE_IDX };
-		std::vector<uint2> taskQ(primitiveCount, invTask);
-		u32 taskCounter = 0; //when it reached to num of primCounts we break out of loop
-		u32 internalNodeOffset = 1; // we will shift it by internal nodes created, set to 1 as root node is the first one
-		taskQ[0] = { 0, INVALID_NODE_IDX }; //initially we have only root task 
-
-		/*
-		
-		  ToDo we no longer need AABB in LBVH node for leaf so we can get rid of it, we can separate primNodes and Bvh2Nodes there too
-		
-		*/
-
-		for (int i = 0; i < primitiveCount; i++)
-		{
-			wideLeafNodes[i].m_primIdx = h_bvhNodes[i + nInternalNodes].m_leftChildIdx;
-		}
-
-		Utility::collapseBvh2toBvh4(h_bvhNodes, wideBvhNodes, wideLeafNodes, taskQ, taskCounter, internalNodeOffset, nInternalNodes, nLeafNodes);
-
-		assert(Utility::checkLBvh4Correctness(wideBvhNodes.data(), wideLeafNodes.data(), m_rootNodeIdx, nInternalNodes) == true);
-
-		m_cost = Utility::calculatebvh4Cost(wideBvhNodes.data(), h_bvhNodes.data(), m_rootNodeIdx, internalNodeOffset, nInternalNodes);
-
-#endif //USE_GPU_WIDE_COLLAPSE 
+		m_cost = Utility::calculatebvh4Cost(wideBvhNodes.data(), wideLeafNodes.data(), triangleAabb.data(), m_rootNodeIdx, internalNodeOffset, nInternalNodes);
 }
 
 void TwoPassLbvh::traverseBvh(Context& context)

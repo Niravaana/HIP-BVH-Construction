@@ -24,7 +24,7 @@ namespace BvhConstruction
 		
 		static bool checkLBvhCorrectness(const LbvhNode* bvhNodes, u32 rootIdx, u32 nLeafNodes, u32 nInternalNodes);
 
-		static bool checkPlocBvhCorrectness(const LbvhNode* bvhNodes, const PrimRef* leafNodes, u32 rootIdx, u32 nLeafNodes, u32 nInternalNodes);
+		static bool checkPlocBvh2Correctness(const LbvhNode* bvhNodes, const PrimRef* leafNodes, u32 rootIdx, u32 nLeafNodes, u32 nInternalNodes);
 
 		static bool checkLBvh4Correctness(const Bvh4Node* bvhNodes, const PrimNode* wideLeafNodes, u32 rootIdx, u32 nInternalNodes);
 		
@@ -36,7 +36,7 @@ namespace BvhConstruction
 		
 		static float calculateLbvhCost(const LbvhNode* bvhNodes, u32 rootIdx, u32 nLeafNodes, u32 nInternalNodes);
 
-		static float calculatebvh4Cost(const Bvh4Node* bvhNodes, const LbvhNode* bvh2Nodes, u32 rootIdx, u32 totalNodes, u32 nInternalNodes);
+		static float calculatebvh4Cost(const Bvh4Node* bvhNodes, const PrimNode* bvh4LeafNodes, Aabb* primAabbs, u32 rootIdx, u32 totalNodes, u32 nInternalNodes);
 	
 		static float calculateBinnedSahBvhCost(const SahBvhNode* bvhNodes, u32 rootIdx, u32 totalNodes);
 
