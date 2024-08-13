@@ -531,3 +531,76 @@ void Utility::doEarlySplitClipping(std::vector<Triangle>& inputPrims, std::vecto
 		}
 	}
 }
+
+void Utility::collapseBvh2toBvh4(const std::vector<LbvhNode>& bvh2Nodes, std::vector<Bvh4Node>& bvh4Nodes, std::vector<PrimNode> bvh4LeafNodes, std::vector<uint2>& taskQ, u32 taskCount, u32& bvh8InternalNodeOffset, u32 nBvh2InternalNodes, u32 nBvh2LeafNodes)
+{
+	for (u32 index = 0; index < nBvh2LeafNodes; index++)
+	{
+		if (taskCount == nBvh2LeafNodes) break;
+		uint2 task = taskQ[index];
+		u32 bvh2NodeIdx = task.x;
+		u32 parentIdx = task.y;
+
+		if (bvh2NodeIdx != INVALID_NODE_IDX)
+		{
+			const LbvhNode& node2 = bvh2Nodes[bvh2NodeIdx];
+			u32 childIdx[4] = {INVALID_NODE_IDX, INVALID_NODE_IDX , INVALID_NODE_IDX , INVALID_NODE_IDX };
+			Aabb childAabb[4];
+			u32 childCount = 2;
+			childIdx[0] = node2.m_leftChildIdx;
+			childIdx[1] = node2.m_rightChildIdx;
+			childAabb[0] = bvh2Nodes[node2.m_leftChildIdx].m_aabb;
+			childAabb[1] = bvh2Nodes[node2.m_rightChildIdx].m_aabb;
+
+			for(size_t j = 0; j < 2; j++) //N = 2 so we just need to expand one level to go to grandchildren
+			{
+				float maxArea = 0.0f;
+				u32 maxAreaChildPos = INVALID_NODE_IDX;
+				for (size_t k = 0; k < childCount; k++)
+				{
+					if (childIdx[k] < nBvh2InternalNodes) //this is an intenral node 
+					{
+						float area = bvh2Nodes[childIdx[k]].m_aabb.area();
+						if (area > maxArea)
+						{
+							maxAreaChildPos = k;
+							maxArea = area;
+						}
+					}
+				}
+
+				if (maxAreaChildPos == INVALID_NODE_IDX) break;
+
+				LbvhNode maxChild = bvh2Nodes[childIdx[maxAreaChildPos]];
+				childIdx[maxAreaChildPos] = maxChild.m_leftChildIdx;
+				childAabb[maxAreaChildPos] = bvh2Nodes[maxChild.m_leftChildIdx].m_aabb;
+				childIdx[childCount] = maxChild.m_rightChildIdx;
+				childAabb[childCount] = bvh2Nodes[maxChild.m_rightChildIdx].m_aabb;
+				childCount++;
+
+			}// while 
+
+			//Here we have all 4 child indices lets create wide node 
+			Bvh4Node wideNode;
+			wideNode.m_parent = parentIdx;
+
+			for (size_t i = 0; i < childCount; i++)
+			{
+				if (childIdx[i] < nBvh2InternalNodes)
+				{
+					wideNode.m_child[i] = bvh8InternalNodeOffset++;
+					wideNode.m_aabb[i] = childAabb[i];
+					taskQ[wideNode.m_child[i]] = { childIdx[i] , index };
+				}
+				else
+				{
+					wideNode.m_child[i] = childIdx[i];
+					bvh4LeafNodes[childIdx[i] - nBvh2InternalNodes].m_parent = index;
+					taskCount++;
+				}
+			}
+
+			bvh4Nodes[index] = wideNode;
+		}
+	}
+}
