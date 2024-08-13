@@ -13,6 +13,10 @@ using namespace BvhConstruction;
 #define IFIF 1
 #define USE_GPU_WIDE_COLLAPSE 1
 
+/*
+ToDo : 
+1. For primNode we might not need parentIdx 
+*/
 void PLOCNew::build(Context& context, std::vector<Triangle>& primitives)
 {
  	const size_t primitiveCount = primitives.size();
@@ -181,4 +185,17 @@ void PLOCNew::build(Context& context, std::vector<Triangle>& primitives)
 
 void PLOCNew::traverseBvh(Context& context)
 {
+	//Traversal code will need to be changed for Ploc
+
+	std::cout << "==========================Perf Times==========================" << std::endl;
+	std::cout << "CalculateCentroidExtentsTime :" << m_timer.getTimeRecord(CalculateCentroidExtentsTime) << "ms" << std::endl;
+	std::cout << "CalculateMortonCodesTime :" << m_timer.getTimeRecord(CalculateMortonCodesTime) << "ms" << std::endl;
+	std::cout << "SortingTime : " << m_timer.getTimeRecord(SortingTime) << "ms" << std::endl;
+	std::cout << "BvhBuildTime : " << m_timer.getTimeRecord(BvhBuildTime) << "ms" << std::endl;
+	std::cout << "TraversalTime : " << m_timer.getTimeRecord(TraversalTime) << "ms" << std::endl;
+	std::cout << "CollapseTime : " << m_timer.getTimeRecord(CollapseBvhTime) << "ms" << std::endl;
+	std::cout << "Bvh Cost : " << m_cost << std::endl;
+	std::cout << "Total Time : " << m_timer.getTimeRecord(CalculateCentroidExtentsTime) + m_timer.getTimeRecord(CalculateMortonCodesTime) +
+		m_timer.getTimeRecord(SortingTime) + m_timer.getTimeRecord(BvhBuildTime) << "ms" << std::endl;
+	std::cout << "==============================================================" << std::endl;
 }
