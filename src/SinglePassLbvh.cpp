@@ -33,6 +33,8 @@ void SinglePassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 	OrochiUtils::copyHtoD(d_primRefs.ptr(), h_primRefs.data(), primitiveCount);
 
 	d_sceneExtents.resize(1); d_sceneExtents.reset();
+	Aabb emptyExtents; emptyExtents.reset();
+	OrochiUtils::copyHtoD(d_sceneExtents.ptr(), &emptyExtents, 1);
 	{
 		Kernel centroidExtentsKernel;
 

@@ -61,7 +61,6 @@ extern "C" __global__ void CalculateSceneExtents(const Triangle* __restrict__ pr
 {
 	u32 gIdx = blockIdx.x * blockDim.x + threadIdx.x;
 
-	sceneExtent->reset();
 	Aabb primAabb;
 
 	if (gIdx < primCount)
@@ -98,7 +97,6 @@ extern "C" __global__ void CalculatePrimRefExtents(PrimRef* __restrict__ primRef
 {
 	u32 gIdx = blockIdx.x * blockDim.x + threadIdx.x;
 
-	sceneExtent->reset();
 	Aabb primAabb;
 
 	if (gIdx < primCount)
