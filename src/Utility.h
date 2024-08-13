@@ -4,6 +4,12 @@
 
 namespace BvhConstruction
 {
+	template <typename T, typename U>
+	constexpr T divideRoundUp(T value, U factor)
+	{
+		return (value + factor - 1) / factor;
+	}
+
 	class Utility
 	{
 	public:
@@ -31,7 +37,6 @@ namespace BvhConstruction
 
 		static void doEarlySplitClipping(std::vector<Triangle>& inputPrims, std::vector<PrimRef>& outPrimRefs, float saMax = FltMax);
 
-		template <typename T, typename U>
-		static T divideRoundUp(T value, U factor);
+		
 	};
 }

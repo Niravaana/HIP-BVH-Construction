@@ -1,5 +1,6 @@
 #include <src/Kernel.h>
 #include <src/Error.h>
+#include <src/Utility.h>
 #include <cstring>
 #include <algorithm>
 #include <string>
@@ -118,13 +119,6 @@ namespace BvhConstruction
 		kernel.setFunction(function);
 
 		return Error::Success;
-	}
-
-
-	template <typename T, typename U>
-	T divideRoundUp(T value, U factor)
-	{
-		return (value + factor - 1) / factor;
 	}
 
 	void Kernel::launch(int gx, int gy, int gz, int bx, int by, int bz, u32 sharedMemBytes, oroStream stream)

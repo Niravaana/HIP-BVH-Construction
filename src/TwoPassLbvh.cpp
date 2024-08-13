@@ -179,7 +179,7 @@ void TwoPassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 				std::nullopt);
 
 			collapseToWide4BvhKernel.setArgs({ d_bvhNodes.ptr(), d_wideBvhNodes.ptr(), d_wideLeafNodes.ptr(), d_taskQ.ptr(), d_taskCounter.ptr(),  d_internalNodeOffset.ptr(), nInternalNodes, nLeafNodes });
-			m_timer.measure(TimerCodes::CollapseBvhTime, [&]() { collapseToWide4BvhKernel.launch(Utility::divideRoundUp(2 * primitiveCount, 3)); });
+			m_timer.measure(TimerCodes::CollapseBvhTime, [&]() { collapseToWide4BvhKernel.launch(divideRoundUp(2 * primitiveCount, 3)); });
 		}
 
 		const auto wideBvhNodes = d_wideBvhNodes.getData();

@@ -2,6 +2,8 @@
 #include <dependencies/stbi/stbi_image_write.h>
 #include <dependencies/stbi/stb_image.h>
 #include <algorithm>
+#include <queue>
+
 using namespace BvhConstruction;
 
 /* Call this function and check if the returned value is same as value calculated by scene extent kernel and bvh root nodes*/
@@ -528,10 +530,4 @@ void Utility::doEarlySplitClipping(std::vector<Triangle>& inputPrims, std::vecto
 			taskQueue.push(RRef);
 		}
 	}
-}
-
-template <typename T, typename U>
-T Utility::divideRoundUp(T value, U factor)
-{
-	return (value + factor - 1) / factor;
 }
