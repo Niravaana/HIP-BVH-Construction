@@ -1,6 +1,7 @@
 #pragma once
 #include <src/Common.h>
 #include <vector>
+#include <string>
 
 namespace BvhConstruction
 {
@@ -9,6 +10,12 @@ namespace BvhConstruction
 	{
 		return (value + factor - 1) / factor;
 	}
+
+	class MeshLoader
+	{
+	public:
+		static void loadScene(const std::string& filename, const std::string& mtlBaseDir, std::vector<Triangle>& trianglesOut);
+	};
 
 	class Utility
 	{

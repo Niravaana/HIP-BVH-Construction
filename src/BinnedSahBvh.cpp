@@ -1,10 +1,8 @@
 #include "BinnedSahBvh.h"
-#define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <dependencies/stbi/stbi_image_write.h>
-#define STB_IMAGE_IMPLEMENTATION
+#include <dependencies/stbi/stb_image.h>
 #include "BinnedSahBvh.h"
 #include <src/Utility.h>
-#include <dependencies/stbi/stb_image.h>
 #include <ParallelPrimitives/RadixSort.h>
 #include <iostream>
 #include <queue>
