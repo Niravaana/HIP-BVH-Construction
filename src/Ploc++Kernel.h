@@ -15,12 +15,12 @@ DEVICE T divideRoundUp(T value, U factor)
 	return (value + factor - 1) / factor;
 }
 
-extern "C" __global__ void SetupClusters(LbvhNode* bvhNodes, PrimRef* __restrict__ primRefs, uint32_t* __restrict__ sortedPrimIdx, Aabb* __restrict__ primitivesAabb, int* __restrict__ nodeIndices, uint32_t primCount)
+extern "C" __global__ void SetupClusters(LbvhNode* bvhNodes, PrimRef* __restrict__ primRefs, u32* __restrict__ sortedPrimIdx, Aabb* __restrict__ primitivesAabb, int* __restrict__ nodeIndices, u32 primCount)
 {
-	uint32_t gIdx = blockIdx.x * blockDim.x + threadIdx.x;
+	u32 gIdx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (gIdx >= primCount) return;
 
-	uint32_t primIdx = sortedPrimIdx[gIdx];
+	u32 primIdx = sortedPrimIdx[gIdx];
 	primRefs[gIdx].m_primIdx = primIdx;
 	primRefs[gIdx].m_aabb = primitivesAabb[primIdx];
 	nodeIndices[gIdx] = gIdx + (primCount - 1);
@@ -74,18 +74,18 @@ DEVICE int binaryBlockPrefixSum(bool blockVal, int* blockCache)
 	return blockCache[warpIndex] + warpSum - warpCount + blockVal;
 }
 
-extern "C" __global__ void Ploc(int* nodeIndices0, int* nodeIndices1, LbvhNode* bvhNodes, PrimRef* primRefs, int* nMergedClusters, int* blockOffsetSum, int* atomicBlockCounter, uint32_t nClusters, uint32_t nInternalNodes)
+extern "C" __global__ void Ploc(int* nodeIndices0, int* nodeIndices1, LbvhNode* bvhNodes, PrimRef* primRefs, int* nMergedClusters, int* blockOffsetSum, int* atomicBlockCounter, u32 nClusters, u32 nInternalNodes)
 {
 	int gIdx = blockIdx.x * blockDim.x + threadIdx.x;
 	int blockOffset = blockDim.x * blockIdx.x;
 
 	alignas(alignof(Aabb)) __shared__ u8 aabbSharedMem[sizeof(Aabb) * (PlocBlockSize + 4 * PlocRadius)];
-	__shared__ uint64_t neighbourIndicesSharedMem[PlocBlockSize + 4 * PlocRadius];//block size of neighbouring node Indices from search of nodeIndices0
+	__shared__ u64 neighbourIndicesSharedMem[PlocBlockSize + 4 * PlocRadius];//block size of neighbouring node Indices from search of nodeIndices0
 	__shared__ int nodeIndicesSharedMem[PlocBlockSize + 4 * PlocRadius]; //block size of node Indices from nodeIndices0
 	__shared__ int localBlockOffset; // Each block will have a offset, use this variable to propogate localBlockOffset to all blocks
 
 	Aabb* ptrAabbSharedMem = reinterpret_cast<Aabb*>(aabbSharedMem) + 2 * PlocRadius;
-	uint64_t* ptrNeighbourIndices  = neighbourIndicesSharedMem + 2 * PlocRadius;
+	u64* ptrNeighbourIndices  = neighbourIndicesSharedMem + 2 * PlocRadius;
 	int* ptrNodeIndices = nodeIndicesSharedMem + 2 * PlocRadius;
 
 	for (int neighbourIdx = int(threadIdx.x) - 2 * PlocRadius; neighbourIdx < int(blockDim.x) + 2 * PlocRadius; neighbourIdx += blockDim.x)
@@ -103,14 +103,14 @@ extern "C" __global__ void Ploc(int* nodeIndices0, int* nodeIndices1, LbvhNode* 
 			ptrAabbSharedMem[neighbourIdx].m_max = { FltMax, FltMax , FltMax };
 			ptrNodeIndices[neighbourIdx] = INVALID_NODE_IDX;
 		}
-		ptrNeighbourIndices[neighbourIdx] = uint64_t(-1);
+		ptrNeighbourIndices[neighbourIdx] = u64(-1);
 	}
 
 	__syncthreads();
 
 	for (int tId = int(threadIdx.x) - 2 * PlocRadius; tId < int(blockDim.x) + PlocRadius; tId += blockDim.x)
 	{
-		uint64_t minAreadAndIndex = uint64_t(-1);
+		u64 minAreadAndIndex = u64(-1);
 		Aabb aabb = ptrAabbSharedMem[tId];
 
 		for (int neighbourIdx = tId + 1; neighbourIdx < tId + PlocRadius + 1; neighbourIdx++)
@@ -119,9 +119,9 @@ extern "C" __global__ void Ploc(int* nodeIndices0, int* nodeIndices1, LbvhNode* 
 			neighbourAabb.grow(aabb);
 			float area = neighbourAabb.area();
 
-			uint64_t encode0 = (uint64_t(__float_as_int(area)) << 32ull) | uint64_t(neighbourIdx + blockOffset);
+			u64 encode0 = (u64(__float_as_int(area)) << 32ull) | u64(neighbourIdx + blockOffset);
 			minAreadAndIndex = min(minAreadAndIndex, encode0);
-			uint64_t encode1 = (uint64_t(__float_as_int(area)) << 32ull) | uint64_t(tId + blockOffset);
+			u64 encode1 = (u64(__float_as_int(area)) << 32ull) | u64(tId + blockOffset);
 			atomicMin(&ptrNeighbourIndices[neighbourIdx], encode1);
 		}
 	
@@ -134,15 +134,16 @@ extern "C" __global__ void Ploc(int* nodeIndices0, int* nodeIndices1, LbvhNode* 
 
 	if (gIdx < nClusters)
 	{
-		int leftChildIdx = ptrNodeIndices[threadIdx.x];
-		int neighbourIdx = (ptrNeighbourIndices[threadIdx.x] & 0xffffffff) - blockOffset;
+		int currentClusterIdx = threadIdx.x;
+		int leftChildIdx = ptrNodeIndices[currentClusterIdx];
+		int neighbourIdx = (ptrNeighbourIndices[currentClusterIdx] & 0xffffffff) - blockOffset;
 		int rightChildIdx = ptrNodeIndices[neighbourIdx];
 		int neighboursNeighbourIDx = (ptrNeighbourIndices[neighbourIdx] & 0xffffffff) - blockOffset;
 		
 		bool merge = false;
-		if (int(threadIdx.x) == neighboursNeighbourIDx)
+		if (currentClusterIdx == neighboursNeighbourIDx)
 		{
-			if (int(threadIdx.x) < neighbourIdx) merge = true;
+			if (currentClusterIdx < neighbourIdx) merge = true;
 		}
 		else
 		{
@@ -152,7 +153,7 @@ extern "C" __global__ void Ploc(int* nodeIndices0, int* nodeIndices1, LbvhNode* 
 		int mergedNodeIdx = nClusters - 2 - binaryWarpPrefixSum(merge, nMergedClusters);
 		if (merge)
 		{
-			Aabb aabb = ptrAabbSharedMem[threadIdx.x];
+			Aabb aabb = ptrAabbSharedMem[currentClusterIdx];
 			aabb.grow(ptrAabbSharedMem[neighbourIdx]);
 			bvhNodes[mergedNodeIdx].m_leftChildIdx = leftChildIdx;
 			bvhNodes[mergedNodeIdx].m_rightChildIdx = rightChildIdx;

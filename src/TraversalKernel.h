@@ -23,7 +23,7 @@ extern "C" __global__ void BvhTraversalifif(const  Ray* __restrict__ raysBuff, u
 #else
 	constexpr int WG_SIZE = 64;
 	int lIdx = blockDim.x * threadIdx.y + threadIdx.x;
-	__shared__ uint32_t ldsBuffer[STACK_SIZE * WG_SIZE];
+	__shared__ u32 ldsBuffer[STACK_SIZE * WG_SIZE];
 	u32* stack = &ldsBuffer[STACK_SIZE * lIdx];
 #endif
 
@@ -113,7 +113,7 @@ extern "C" __global__ void BvhTraversalWhile(const  Ray* __restrict__ raysBuff, 
 #else
 	constexpr int WG_SIZE = 64;
 	int lIdx = blockDim.x * threadIdx.y + threadIdx.x;
-	__shared__ uint32_t ldsBuffer[STACK_SIZE * WG_SIZE];
+	__shared__ u32 ldsBuffer[STACK_SIZE * WG_SIZE];
 	u32* stack = &ldsBuffer[STACK_SIZE * lIdx];
 #endif
 

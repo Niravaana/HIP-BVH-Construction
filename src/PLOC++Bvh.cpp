@@ -78,10 +78,10 @@ void PLOCNew::build(Context& context, std::vector<Triangle>& primitives)
 			sort.sort(srcGpu, dstGpu, static_cast<int>(primitiveCount), startBit, endBit, stream); });
 	}
 
-	const uint32_t nLeafNodes = primitiveCount;
-	const uint32_t nInternalNodes = nLeafNodes - 1;
+	const u32 nLeafNodes = primitiveCount;
+	const u32 nInternalNodes = nLeafNodes - 1;
 	bool swapBuffer = false;
-	uint32_t nClusters = primitiveCount;
+	u32 nClusters = primitiveCount;
 
 	d_leafNodes.resize(primitiveCount); d_leafNodes.reset();
 	d_bvhNodes.resize(nInternalNodes); d_bvhNodes.reset();
