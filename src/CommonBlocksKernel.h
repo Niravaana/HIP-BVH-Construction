@@ -56,6 +56,17 @@ DEVICE INLINE Aabb blockReduce(Aabb val, __shared__ Aabb* sharedMem)
 	return val;
 }
 
+extern "C" __global__ void InitPrimRefs(PrimRef* __restrict__ primRefs, const Triangle* __restrict__ primitives, u32 primCount)
+{
+	u32 gIdx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (gIdx >= primCount) return;
+
+	Aabb primAabb;
+	primAabb.grow(primitives[gIdx].v1); primAabb.grow(primitives[gIdx].v2); primAabb.grow(primitives[gIdx].v3);
+	primRefs[gIdx].m_primIdx = gIdx;
+	primRefs[gIdx].m_aabb = primAabb;
+}
+
 
 extern "C" __global__ void CalculateSceneExtents(const Triangle* __restrict__ primitives, Aabb* __restrict__ primitivesAabb, Aabb* __restrict__ sceneExtent, u32 primCount)
 {
@@ -79,18 +90,6 @@ extern "C" __global__ void CalculateSceneExtents(const Triangle* __restrict__ pr
 
 	if (threadIdx.x == 0)
 		sceneExtent->atomicGrow(blockExtent);
-}
-
-
-extern "C" __global__ void InitPrimRefs(PrimRef* __restrict__ primRefs, const Triangle* __restrict__ primitives, u32 primCount)
-{
-	u32 gIdx = blockIdx.x * blockDim.x + threadIdx.x;
-	if (gIdx >= primCount) return;
-
-	Aabb primAabb;
-	primAabb.grow(primitives[gIdx].v1); primAabb.grow(primitives[gIdx].v2); primAabb.grow(primitives[gIdx].v3);
-	primRefs[gIdx].m_primIdx = gIdx;
-	primRefs[gIdx].m_aabb = primAabb;
 }
 
 extern "C" __global__ void CalculatePrimRefExtents(PrimRef* __restrict__ primRefs, Aabb* __restrict__ sceneExtent, u32 primCount)

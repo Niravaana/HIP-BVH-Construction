@@ -582,7 +582,7 @@ DEVICE INLINE float atomicMaxFloat(float* addr, float value)
 		float2 m_uv; //barycentric coordinates
 	};
 
-	constexpr size_t size = sizeof(Ray);
 	constexpr int PlocBlockSize = 1024;
-	constexpr int PlocRadius = 3;
+	constexpr int PlocRadius = 10;
+	constexpr int ReductionBlockSize = 256;
 }

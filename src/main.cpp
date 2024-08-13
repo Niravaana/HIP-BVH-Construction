@@ -21,7 +21,7 @@ int main(int argc, char* argv[])
 	{
 		Context context;
 		Timer timer;
-		TwoPassLbvh bvh;
+		PLOCNew bvh;
 
 		std::vector<Triangle> triangles;
 		//MeshLoader::loadScene("../src/meshes/cornellbox/cornellbox.obj", "../src/meshes/cornellbox/", triangles);

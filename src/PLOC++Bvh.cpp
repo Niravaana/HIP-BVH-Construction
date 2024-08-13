@@ -20,6 +20,8 @@ void PLOCNew::build(Context& context, std::vector<Triangle>& primitives)
 	OrochiUtils::copyHtoD(d_triangleBuff.ptr(), primitives.data(), primitives.size());
 
 	d_sceneExtents.resize(1); d_sceneExtents.reset();
+	Aabb extent; extent.reset();
+	OrochiUtils::copyHtoD(d_sceneExtents.ptr(), &extent, 1);
 	{
 		Kernel centroidExtentsKernel;
 
@@ -31,14 +33,8 @@ void PLOCNew::build(Context& context, std::vector<Triangle>& primitives)
 			std::nullopt);
 
 		centroidExtentsKernel.setArgs({ d_triangleBuff.ptr(), d_triangleAabb.ptr(), d_sceneExtents.ptr(), primitiveCount });
-		m_timer.measure(TimerCodes::CalculateCentroidExtentsTime, [&]() { centroidExtentsKernel.launch(primitiveCount); });
+		m_timer.measure(TimerCodes::CalculateCentroidExtentsTime, [&]() { centroidExtentsKernel.launch(primitiveCount, ReductionBlockSize); });
 	}
-
-#if _DEBUG
-	const auto debugTriangle = d_triangleBuff.getData();
-	const auto debugAabb = d_triangleAabb.getData();
-	const auto debugExtent = d_sceneExtents.getData()[0];
-#endif
 
 	d_mortonCodeKeys.resize(primitiveCount); d_mortonCodeKeys.reset();
 	d_mortonCodeValues.resize(primitiveCount); d_mortonCodeValues.reset();
@@ -82,20 +78,24 @@ void PLOCNew::build(Context& context, std::vector<Triangle>& primitives)
 			sort.sort(srcGpu, dstGpu, static_cast<int>(primitiveCount), startBit, endBit, stream); });
 	}
 
-	const u32 nLeafNodes = primitiveCount;
-	const u32 nInternalNodes = nLeafNodes - 1;
-	const u32 nTotlaNodes = nLeafNodes + nInternalNodes;
+	const uint32_t nLeafNodes = primitiveCount;
+	const uint32_t nInternalNodes = nLeafNodes - 1;
 	bool swapBuffer = false;
-	u32 nClusters = primitiveCount;
+	uint32_t nClusters = primitiveCount;
 
 	d_leafNodes.resize(primitiveCount); d_leafNodes.reset();
 	d_bvhNodes.resize(nInternalNodes); d_bvhNodes.reset();
 
-	Oro::GpuMemory<int> d_nodeIdx0(primitiveCount); d_nodeIdx0.reset();
-	Oro::GpuMemory<int> d_nodeIdx1(primitiveCount); d_nodeIdx1.reset();
+	int invalid = INVALID_NODE_IDX;
+	Oro::GpuMemory<int> d_nodeIdx0(primitiveCount); 
+	Oro::GpuMemory<int> d_nodeIdx1(primitiveCount); 
 	Oro::GpuMemory<int> d_nMergedClusters(1); 
 	Oro::GpuMemory<int> d_blockOffsetSum(1);
 	Oro::GpuMemory<int> d_atomicBlockCounter(1);
+	
+	OrochiUtils::memset(d_nodeIdx0.ptr(), invalid, sizeof(int) * primitiveCount);
+	OrochiUtils::memset(d_nodeIdx1.ptr(), invalid, sizeof(int) * primitiveCount);
+	
 	{
 		Kernel setupClusterKernel;
 
@@ -109,33 +109,27 @@ void PLOCNew::build(Context& context, std::vector<Triangle>& primitives)
 		setupClusterKernel.setArgs({d_bvhNodes.ptr(),  d_leafNodes.ptr(), d_sortedMortonCodeValues.ptr() , d_triangleAabb.ptr(), d_nodeIdx0.ptr(), primitiveCount });
 		m_timer.measure(TimerCodes::CalculateMortonCodesTime, [&]() { setupClusterKernel.launch(primitiveCount); });
 	}
-//#if _DEBUG 
-//	const auto dd = d_leafNodes.getData();
-//	const auto dd1 = d_leafNodes.getData();
-//	const auto dd2 = d_nodeIdx0.getData();
-//#endif
+
+	Kernel plocKernel;
+
+	buildKernelFromSrc(
+		plocKernel,
+		context.m_orochiDevice,
+		"../src/Ploc++Kernel.h",
+		"Ploc",
+		std::nullopt);
 
 	while (nClusters > 1)
 	{
 		d_nMergedClusters.reset(); d_blockOffsetSum.reset(); d_atomicBlockCounter.reset();
 		int* nodeIndices0 = !swapBuffer ? d_nodeIdx0.ptr() : d_nodeIdx1.ptr();
 		int* nodeIndices1 = !swapBuffer ? d_nodeIdx1.ptr() : d_nodeIdx0.ptr();
+
 		{
-			Kernel plocKernel;
-
-			buildKernelFromSrc(
-				plocKernel,
-				context.m_orochiDevice,
-				"../src/Ploc++Kernel.h",
-				"Ploc",
-				std::nullopt);
-
 			plocKernel.setArgs({ nodeIndices0, nodeIndices1, d_bvhNodes.ptr(), d_leafNodes.ptr(), d_nMergedClusters.ptr(), d_blockOffsetSum.ptr(),  d_atomicBlockCounter.ptr(), nClusters, nInternalNodes});
-			m_timer.measure(TimerCodes::CalculateMortonCodesTime, [&]() { plocKernel.launch(nClusters); });
+			m_timer.measure(TimerCodes::CalculateMortonCodesTime, [&]() { plocKernel.launch(nClusters, PlocBlockSize); });
 		}
 
-		//if (nClusters <= PlocBlockSize) break;
-		const auto tt = d_nMergedClusters.getData()[0];
 		nClusters = nClusters - d_nMergedClusters.getData()[0];
 		swapBuffer = !swapBuffer;
 	}
@@ -143,8 +137,6 @@ void PLOCNew::build(Context& context, std::vector<Triangle>& primitives)
 	const auto h_bvhNodes = d_bvhNodes.getData();
 	const auto h_leafNodes = d_leafNodes.getData();
 	assert(Utility::checkPlocBvhCorrectness(h_bvhNodes.data(), h_leafNodes.data(), m_rootNodeIdx, nLeafNodes, nInternalNodes) == true);
-
-	std::cout << "Done Ploc";
 }
 
 void PLOCNew::traverseBvh(Context& context)

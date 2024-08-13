@@ -61,18 +61,18 @@ bool Utility::checkLBvhCorrectness(const LbvhNode* bvhNodes, u32 rootIdx, u32 nL
 
 bool Utility::checkPlocBvhCorrectness(const LbvhNode* bvhNodes, const PrimRef* leafNodes, u32 rootIdx, u32 nLeafNodes, u32 nInternalNodes)
 {
-	std::vector<u32> primIdxs;
+	std::vector<uint32_t> primIdxs;
 	{
-		u32 stack[32];
+		uint32_t stack[32];
 		int top = 0;
 		stack[top++] = INVALID_NODE_IDX;
-		u32 nodeIdx = rootIdx;
+		uint32_t nodeIdx = rootIdx;
 
 		while (nodeIdx != INVALID_NODE_IDX)
 		{
 			if (nodeIdx >= nInternalNodes)
 			{
-				primIdxs.push_back(leafNodes[nodeIdx].m_primIdx);
+				primIdxs.push_back(leafNodes[nodeIdx - nInternalNodes].m_primIdx);
 			}
 			else
 			{
