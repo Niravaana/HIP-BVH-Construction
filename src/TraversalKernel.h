@@ -4,7 +4,7 @@
 using namespace BvhConstruction;
 #define __SHARED_STACK 1 
 
-extern "C" __global__ void BvhTraversalifif(const  Ray* __restrict__ raysBuff, u32* rayCounter, const  Triangle* __restrict__ primitives, const LbvhNode* __restrict__ bvhNodes, const Transformation* __restrict__ tr, u8* __restrict__ colorBuffOut, u32 rootIdx, const u32 width, const u32 height, const u32 nInternalNodes)
+extern "C" __global__ void BvhTraversalifif(const  Ray* __restrict__ raysBuff, u32* rayCounter, const  Triangle* __restrict__ primitives, const Bvh2Node* __restrict__ bvhNodes, const Transformation* __restrict__ tr, u8* __restrict__ colorBuffOut, u32 rootIdx, const u32 width, const u32 height, const u32 nInternalNodes)
 {
 	const int gIdx = blockIdx.x * blockDim.x + threadIdx.x;
 	const int gIdy = blockIdx.y * blockDim.y + threadIdx.y;
@@ -37,7 +37,7 @@ extern "C" __global__ void BvhTraversalifif(const  Ray* __restrict__ raysBuff, u
 
 	while (nodeIdx != INVALID_NODE_IDX)
 	{
-		const LbvhNode& node = bvhNodes[nodeIdx];
+		const Bvh2Node& node = bvhNodes[nodeIdx];
 
 		if (nodeIdx >= nInternalNodes)
 		{
@@ -94,7 +94,7 @@ extern "C" __global__ void BvhTraversalifif(const  Ray* __restrict__ raysBuff, u
 	}
 }
 
-extern "C" __global__ void BvhTraversalWhile(const  Ray* __restrict__ raysBuff, const  Triangle* __restrict__ primitives, const LbvhNode* __restrict__ bvhNodes, const Transformation* __restrict__ tr, u8* __restrict__ colorBuffOut, u32 rootIdx, const u32 width, const u32 height, const u32 nInternalNodes)
+extern "C" __global__ void BvhTraversalWhile(const  Ray* __restrict__ raysBuff, const  Triangle* __restrict__ primitives, const Bvh2Node* __restrict__ bvhNodes, const Transformation* __restrict__ tr, u8* __restrict__ colorBuffOut, u32 rootIdx, const u32 width, const u32 height, const u32 nInternalNodes)
 {
 	const int gIdx = blockIdx.x * blockDim.x + threadIdx.x;
 	const int gIdy = blockIdx.y * blockDim.y + threadIdx.y;
@@ -129,7 +129,7 @@ extern "C" __global__ void BvhTraversalWhile(const  Ray* __restrict__ raysBuff, 
 	{
 		while (nodeIdx < nInternalNodes)
 		{
-			const LbvhNode& node = bvhNodes[nodeIdx];
+			const Bvh2Node& node = bvhNodes[nodeIdx];
 			const Aabb left = bvhNodes[node.m_leftChildIdx].m_aabb;
 			const Aabb right = bvhNodes[node.m_rightChildIdx].m_aabb;
 			const float2 t0 = left.intersect(transformedRay.m_origin, invRayDir, hit.m_t);
@@ -161,7 +161,7 @@ extern "C" __global__ void BvhTraversalWhile(const  Ray* __restrict__ raysBuff, 
 
 		while (nodeIdx >= nInternalNodes && nodeIdx != INVALID_NODE_IDX)
 		{
-			const LbvhNode& node = bvhNodes[nodeIdx];
+			const Bvh2Node& node = bvhNodes[nodeIdx];
 
 			if (nodeIdx >= nInternalNodes)
 			{

@@ -431,7 +431,7 @@ DEVICE INLINE float atomicMaxFloat(float* addr, float value)
 		float3 v3;
 	};
 
-	struct alignas(32) LbvhNode
+	struct alignas(32) Bvh2Node
 	{
 		u32 m_leftChildIdx;
 		u32 m_rightChildIdx;

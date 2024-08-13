@@ -109,7 +109,7 @@ DEVICE u32 findSplit(const u32* __restrict__ mortonCode, const u32 nLeafNodes, c
 
 extern "C" __global__ void InitBvhNodes(
 	const Triangle* __restrict__ primitives,
-	LbvhNode* __restrict__ bvhNodes,
+	Bvh2Node* __restrict__ bvhNodes,
 	u32* __restrict__ parentIdxs,
 	const u32* __restrict__ primIdx,
 	const u32 nLeafNodes,
@@ -122,7 +122,7 @@ extern "C" __global__ void InitBvhNodes(
 	{
 		const u32 nodeIdx = gIdx + nInternalNodes;
 		u32 idx = primIdx[gIdx];
-		LbvhNode& node = bvhNodes[nodeIdx];
+		Bvh2Node& node = bvhNodes[nodeIdx];
 		node.m_aabb.reset();
 		node.m_aabb.grow(primitives[idx].v1); node.m_aabb.grow(primitives[idx].v2); node.m_aabb.grow(primitives[idx].v3);
 		node.m_leftChildIdx = idx;
@@ -131,7 +131,7 @@ extern "C" __global__ void InitBvhNodes(
 	}
 	if (gIdx < nInternalNodes)
 	{
-		LbvhNode& node = bvhNodes[gIdx];
+		Bvh2Node& node = bvhNodes[gIdx];
 		node.m_aabb.reset();
 		node.m_leftChildIdx = INVALID_NODE_IDX;
 		node.m_rightChildIdx = INVALID_NODE_IDX;
@@ -141,7 +141,7 @@ extern "C" __global__ void InitBvhNodes(
 
 extern "C" __global__ void InitBvhNodesPrimRef(
 	const PrimRef* __restrict__ primitives,
-	LbvhNode* __restrict__ bvhNodes,
+	Bvh2Node* __restrict__ bvhNodes,
 	u32* __restrict__ parentIdxs,
 	const u32* __restrict__ primIdx,
 	const u32 nLeafNodes,
@@ -154,7 +154,7 @@ extern "C" __global__ void InitBvhNodesPrimRef(
 	{
 		const u32 nodeIdx = gIdx + nInternalNodes;
 		u32 idx = primIdx[gIdx];
-		LbvhNode& node = bvhNodes[nodeIdx];
+		Bvh2Node& node = bvhNodes[nodeIdx];
 		node.m_aabb.reset();
 		node.m_aabb = primitives[idx].m_aabb;
 		node.m_leftChildIdx = primitives[idx].m_primIdx;
@@ -163,7 +163,7 @@ extern "C" __global__ void InitBvhNodesPrimRef(
 	}
 	if (gIdx < nInternalNodes)
 	{
-		LbvhNode& node = bvhNodes[gIdx];
+		Bvh2Node& node = bvhNodes[gIdx];
 		node.m_aabb.reset();
 		node.m_leftChildIdx = INVALID_NODE_IDX;
 		node.m_rightChildIdx = INVALID_NODE_IDX;
@@ -172,7 +172,7 @@ extern "C" __global__ void InitBvhNodesPrimRef(
 }
 
 extern "C" __global__ void BvhBuild(
-	LbvhNode* __restrict__ bvhNodes,
+	Bvh2Node* __restrict__ bvhNodes,
 	u32* __restrict__ parentIdxs,
 	const u32* __restrict__ mortonCodes,
 	u32 nLeafNodes,
@@ -192,7 +192,7 @@ extern "C" __global__ void BvhBuild(
 	parentIdxs[leftChildIdx] = gIdx;
 	parentIdxs[rightChildIdx] = gIdx;
 }
-extern "C" __global__ void FitBvhNodes(LbvhNode* __restrict__ bvhNodes, u32* __restrict__ parentIdxs, u32* flags, u32 nLeafNodes, u32 nInternalNodes)
+extern "C" __global__ void FitBvhNodes(Bvh2Node* __restrict__ bvhNodes, u32* __restrict__ parentIdxs, u32* flags, u32 nLeafNodes, u32 nInternalNodes)
 {
 	const unsigned int gIdx = threadIdx.x + blockIdx.x * blockDim.x;
 	if (gIdx >= nLeafNodes) return;
@@ -213,7 +213,7 @@ extern "C" __global__ void FitBvhNodes(LbvhNode* __restrict__ bvhNodes, u32* __r
 }
 
 extern "C" __global__ void CollapseToWide4Bvh(
-	LbvhNode* bvh2Nodes, 
+	Bvh2Node* bvh2Nodes, 
 	Bvh4Node* bvh4Nodes,
 	PrimNode* bvh4LeafNodes,
 	uint2* taskQ,
@@ -236,7 +236,7 @@ extern "C" __global__ void CollapseToWide4Bvh(
 		u32 parentIdx = task.y;
 		if (bvh2NodeIdx != INVALID_NODE_IDX && !done)
 		{
-			const LbvhNode& node2 = bvh2Nodes[bvh2NodeIdx];
+			const Bvh2Node& node2 = bvh2Nodes[bvh2NodeIdx];
 			u32 childIdx[4] = { INVALID_NODE_IDX, INVALID_NODE_IDX , INVALID_NODE_IDX , INVALID_NODE_IDX };
 			Aabb childAabb[4];
 			u32 childCount = 2;
@@ -264,7 +264,7 @@ extern "C" __global__ void CollapseToWide4Bvh(
 
 				if (maxAreaChildPos == INVALID_NODE_IDX) break;
 
-				LbvhNode maxChild = bvh2Nodes[childIdx[maxAreaChildPos]];
+				Bvh2Node maxChild = bvh2Nodes[childIdx[maxAreaChildPos]];
 				childIdx[maxAreaChildPos] = maxChild.m_leftChildIdx;
 				childAabb[maxAreaChildPos] = bvh2Nodes[maxChild.m_leftChildIdx].m_aabb;
 				childIdx[childCount] = maxChild.m_rightChildIdx;

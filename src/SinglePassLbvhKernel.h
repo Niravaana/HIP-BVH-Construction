@@ -5,7 +5,7 @@ using namespace BvhConstruction;
 
 extern "C" __global__ void InitBvhNodes(
 	const Triangle* __restrict__ primitives,
-	LbvhNode* __restrict__ bvhNodes,
+	Bvh2Node* __restrict__ bvhNodes,
 	const u32* __restrict__ primIdx,
 	const u32 nInternalNodes,
 	const u32 nLeafNodes)
@@ -16,7 +16,7 @@ extern "C" __global__ void InitBvhNodes(
 	{
 		const u32 nodeIdx = gIdx + nInternalNodes;
 		u32 idx = primIdx[gIdx];
-		LbvhNode& node = bvhNodes[nodeIdx];
+		Bvh2Node& node = bvhNodes[nodeIdx];
 		node.m_aabb.reset();
 		node.m_aabb.grow(primitives[idx].v1); node.m_aabb.grow(primitives[idx].v2); node.m_aabb.grow(primitives[idx].v3);
 		node.m_leftChildIdx = idx;
@@ -25,7 +25,7 @@ extern "C" __global__ void InitBvhNodes(
 
 	if (gIdx < nInternalNodes)
 	{
-		LbvhNode& node = bvhNodes[gIdx];
+		Bvh2Node& node = bvhNodes[gIdx];
 		node.m_aabb.reset();
 		node.m_leftChildIdx = INVALID_NODE_IDX;
 		node.m_rightChildIdx = INVALID_NODE_IDX;
@@ -41,7 +41,7 @@ DEVICE uint64_t findHighestDiffBit(const u32* __restrict__ mortonCodes, int i, i
 }
 
 DEVICE int findParent(
-	LbvhNode* __restrict__ bvhNodes,
+	Bvh2Node* __restrict__ bvhNodes,
 	uint2* spans,
 	const u32* __restrict__ mortonCodes,
 	u32 currentNodeIdx,
@@ -65,7 +65,7 @@ DEVICE int findParent(
 }
 
 extern "C" __global__ void BvhBuildAndFit(
-	LbvhNode* __restrict__ bvhNodes,
+	Bvh2Node* __restrict__ bvhNodes,
 	int* __restrict__ bvhNodeCounter,
 	uint2* __restrict__ spans,
 	const u32* __restrict__ mortonCodes,
@@ -85,7 +85,7 @@ extern "C" __global__ void BvhBuildAndFit(
 	{
 		__threadfence();
 
-		LbvhNode& node = bvhNodes[gIdx];
+		Bvh2Node& node = bvhNodes[gIdx];
 		uint2 span = spans[gIdx];
 
 		node.m_aabb = merge(bvhNodes[node.m_leftChildIdx].m_aabb, bvhNodes[node.m_rightChildIdx].m_aabb);

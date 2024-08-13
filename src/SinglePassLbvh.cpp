@@ -172,7 +172,13 @@ void SinglePassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 		const auto wideBvhNodes = d_wideBvhNodes.getData();
 		const auto wideLeafNodes = d_wideLeafNodes.getData();
 		auto internalNodeOffset = d_internalNodeOffset.getData()[0];
-		auto triangleAabb = d_triangleAabb.getData();
+		auto primRefs = d_primRefs.getData();
+		std::vector<Aabb> triangleAabb(primRefs.size());
+		for (size_t i = 0; i < primRefs.size(); i++)
+		{
+			triangleAabb[primRefs[i].m_primIdx] = primRefs[i].m_aabb;
+		}
+
 		//Bvh4 root is again 0
 		m_rootNodeIdx = 0;
 

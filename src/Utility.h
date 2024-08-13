@@ -20,21 +20,21 @@ namespace BvhConstruction
 	class Utility
 	{
 	public:
-		static bool checkLbvhRootAabb(const LbvhNode* bvhNodes, u32 rootIdx, u32 nLeafNodes, u32 nInternalNodes);
+		static bool checkLbvhRootAabb(const Bvh2Node* bvhNodes, u32 rootIdx, u32 nLeafNodes, u32 nInternalNodes);
 		
-		static bool checkLBvhCorrectness(const LbvhNode* bvhNodes, u32 rootIdx, u32 nLeafNodes, u32 nInternalNodes);
+		static bool checkLBvhCorrectness(const Bvh2Node* bvhNodes, u32 rootIdx, u32 nLeafNodes, u32 nInternalNodes);
 
-		static bool checkPlocBvh2Correctness(const LbvhNode* bvhNodes, const PrimRef* leafNodes, u32 rootIdx, u32 nLeafNodes, u32 nInternalNodes);
+		static bool checkPlocBvh2Correctness(const Bvh2Node* bvhNodes, const PrimRef* leafNodes, u32 rootIdx, u32 nLeafNodes, u32 nInternalNodes);
 
 		static bool checkLBvh4Correctness(const Bvh4Node* bvhNodes, const PrimNode* wideLeafNodes, u32 rootIdx, u32 nInternalNodes);
 		
 		static bool checkSahCorrectness(const SahBvhNode* bvhNodes, u32 rootIdx, u32 nLeafNodes);
 		
-		static void TraversalLbvhCPU(const std::vector<Ray>& rayBuff, std::vector<LbvhNode> bvhNodes, std::vector<Triangle> primitives, Transformation& t, u8* dst, u32 width, u32 height, u32 nInternalNodes);
+		static void TraversalLbvhCPU(const std::vector<Ray>& rayBuff, std::vector<Bvh2Node> bvhNodes, std::vector<Triangle> primitives, Transformation& t, u8* dst, u32 width, u32 height, u32 nInternalNodes);
 		
 		static void TraversalSahBvhCPU(const std::vector<Ray>& rayBuff, std::vector<SahBvhNode> bvhNodes, std::vector<Triangle> primitives, Transformation& t, u8* dst, u32 width, u32 height);
 		
-		static float calculateLbvhCost(const LbvhNode* bvhNodes, u32 rootIdx, u32 nLeafNodes, u32 nInternalNodes);
+		static float calculateLbvhCost(const Bvh2Node* bvhNodes, u32 rootIdx, u32 nLeafNodes, u32 nInternalNodes);
 
 		static float calculatebvh4Cost(const Bvh4Node* bvhNodes, const PrimNode* bvh4LeafNodes, Aabb* primAabbs, u32 rootIdx, u32 totalNodes, u32 nInternalNodes);
 	
@@ -44,7 +44,7 @@ namespace BvhConstruction
 
 		static void doEarlySplitClipping(std::vector<Triangle>& inputPrims, std::vector<PrimRef>& outPrimRefs, float saMax = FltMax);
 
-		static void collapseBvh2toBvh4(const std::vector<LbvhNode>& bvh2Nodes, std::vector<Bvh4Node>& bvh4Nodes, std::vector<PrimNode> bvh4LeafNodes, std::vector<uint2>& taskQ, u32 taskCount, u32& bvh8InternalNodeOffset, u32 nBvh2InternalNodes, u32 nBvh2LeafNodes);
+		static void collapseBvh2toBvh4(const std::vector<Bvh2Node>& bvh2Nodes, std::vector<Bvh4Node>& bvh4Nodes, std::vector<PrimNode> bvh4LeafNodes, std::vector<uint2>& taskQ, u32 taskCount, u32& bvh8InternalNodeOffset, u32 nBvh2InternalNodes, u32 nBvh2LeafNodes);
 		
 	};
 }

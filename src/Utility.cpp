@@ -12,7 +12,7 @@
 using namespace BvhConstruction;
 
 /* Call this function and check if the returned value is same as value calculated by scene extent kernel and bvh root nodes*/
-bool Utility::checkLbvhRootAabb(const LbvhNode* bvhNodes, u32 rootIdx, u32 nLeafNodes, u32 nInternalNodes)
+bool Utility::checkLbvhRootAabb(const Bvh2Node* bvhNodes, u32 rootIdx, u32 nLeafNodes, u32 nInternalNodes)
 {
 	Aabb rootAabb;
 	std::vector<u32> primIdxsX;
@@ -28,7 +28,7 @@ bool Utility::checkLbvhRootAabb(const LbvhNode* bvhNodes, u32 rootIdx, u32 nLeaf
 
 /* This function will do DFS and visiting all the leaf nodes collect primIdxin a vector. 
 The size of this vector should match nLeaf Nodes and this vector should have unique values*/
-bool Utility::checkLBvhCorrectness(const LbvhNode* bvhNodes, u32 rootIdx, u32 nLeafNodes, u32 nInternalNodes)
+bool Utility::checkLBvhCorrectness(const Bvh2Node* bvhNodes, u32 rootIdx, u32 nLeafNodes, u32 nInternalNodes)
 {
 	std::vector<u32> primIdxs;
 	{
@@ -39,7 +39,7 @@ bool Utility::checkLBvhCorrectness(const LbvhNode* bvhNodes, u32 rootIdx, u32 nL
 
 		while (nodeIdx != INVALID_NODE_IDX)
 		{
-			LbvhNode node = bvhNodes[nodeIdx];
+			Bvh2Node node = bvhNodes[nodeIdx];
 			if (nodeIdx >= nInternalNodes)
 			{
 				primIdxs.push_back(node.m_leftChildIdx);
@@ -59,7 +59,7 @@ bool Utility::checkLBvhCorrectness(const LbvhNode* bvhNodes, u32 rootIdx, u32 nL
 	return primIdxs.size() == nLeafNodes && uniqueCount == nLeafNodes;
 }
 
-bool Utility::checkPlocBvh2Correctness(const LbvhNode* bvhNodes, const PrimRef* leafNodes, u32 rootIdx, u32 nLeafNodes, u32 nInternalNodes)
+bool Utility::checkPlocBvh2Correctness(const Bvh2Node* bvhNodes, const PrimRef* leafNodes, u32 rootIdx, u32 nLeafNodes, u32 nInternalNodes)
 {
 	std::vector<uint32_t> primIdxs;
 	{
@@ -76,7 +76,7 @@ bool Utility::checkPlocBvh2Correctness(const LbvhNode* bvhNodes, const PrimRef* 
 			}
 			else
 			{
-				LbvhNode node = bvhNodes[nodeIdx];
+				Bvh2Node node = bvhNodes[nodeIdx];
 				stack[top++] = node.m_leftChildIdx;
 				stack[top++] = node.m_rightChildIdx;
 			}
@@ -158,7 +158,7 @@ bool Utility::checkSahCorrectness(const SahBvhNode* bvhNodes, u32 rootIdx, u32 n
 	return primIdxs.size() == nLeafNodes && uniqueCount == nLeafNodes;
 }
 
-void Utility::TraversalLbvhCPU(const std::vector<Ray>& rayBuff, std::vector<LbvhNode> bvhNodes, std::vector<Triangle> primitives, Transformation& t, u8* dst, u32 width, u32 height, u32 nInternalNodes)
+void Utility::TraversalLbvhCPU(const std::vector<Ray>& rayBuff, std::vector<Bvh2Node> bvhNodes, std::vector<Triangle> primitives, Transformation& t, u8* dst, u32 width, u32 height, u32 nInternalNodes)
 {
 	for (int gIdx = 0; gIdx < width; gIdx++)
 	{
@@ -179,7 +179,7 @@ void Utility::TraversalLbvhCPU(const std::vector<Ray>& rayBuff, std::vector<Lbvh
 
 			while (nodeIdx != INVALID_NODE_IDX)
 			{
-				const LbvhNode& node = bvhNodes[nodeIdx];
+				const Bvh2Node& node = bvhNodes[nodeIdx];
 
 				if (nodeIdx >= nInternalNodes)
 				{
@@ -314,7 +314,7 @@ void Utility::TraversalSahBvhCPU(const std::vector<Ray>& rayBuff, std::vector<Sa
 	}
 }
 
-float Utility::calculateLbvhCost(const LbvhNode* bvhNodes, u32 rootIdx, u32 nLeafNodes, u32 nInternalNodes)
+float Utility::calculateLbvhCost(const Bvh2Node* bvhNodes, u32 rootIdx, u32 nLeafNodes, u32 nInternalNodes)
 {
 	u32 nodeIdx = rootIdx;
 	float cost = 0.0f;
@@ -537,7 +537,7 @@ void Utility::doEarlySplitClipping(std::vector<Triangle>& inputPrims, std::vecto
 	}
 }
 
-void Utility::collapseBvh2toBvh4(const std::vector<LbvhNode>& bvh2Nodes, std::vector<Bvh4Node>& bvh4Nodes, std::vector<PrimNode> bvh4LeafNodes, std::vector<uint2>& taskQ, u32 taskCount, u32& bvh8InternalNodeOffset, u32 nBvh2InternalNodes, u32 nBvh2LeafNodes)
+void Utility::collapseBvh2toBvh4(const std::vector<Bvh2Node>& bvh2Nodes, std::vector<Bvh4Node>& bvh4Nodes, std::vector<PrimNode> bvh4LeafNodes, std::vector<uint2>& taskQ, u32 taskCount, u32& bvh8InternalNodeOffset, u32 nBvh2InternalNodes, u32 nBvh2LeafNodes)
 {
 	for (u32 index = 0; index < nBvh2LeafNodes; index++)
 	{
@@ -548,7 +548,7 @@ void Utility::collapseBvh2toBvh4(const std::vector<LbvhNode>& bvh2Nodes, std::ve
 
 		if (bvh2NodeIdx != INVALID_NODE_IDX)
 		{
-			const LbvhNode& node2 = bvh2Nodes[bvh2NodeIdx];
+			const Bvh2Node& node2 = bvh2Nodes[bvh2NodeIdx];
 			u32 childIdx[4] = {INVALID_NODE_IDX, INVALID_NODE_IDX , INVALID_NODE_IDX , INVALID_NODE_IDX };
 			Aabb childAabb[4];
 			u32 childCount = 2;
@@ -576,7 +576,7 @@ void Utility::collapseBvh2toBvh4(const std::vector<LbvhNode>& bvh2Nodes, std::ve
 
 				if (maxAreaChildPos == INVALID_NODE_IDX) break;
 
-				LbvhNode maxChild = bvh2Nodes[childIdx[maxAreaChildPos]];
+				Bvh2Node maxChild = bvh2Nodes[childIdx[maxAreaChildPos]];
 				childIdx[maxAreaChildPos] = maxChild.m_leftChildIdx;
 				childAabb[maxAreaChildPos] = bvh2Nodes[maxChild.m_leftChildIdx].m_aabb;
 				childIdx[childCount] = maxChild.m_rightChildIdx;

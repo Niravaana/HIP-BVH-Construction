@@ -15,7 +15,7 @@ DEVICE T divideRoundUp(T value, U factor)
 	return (value + factor - 1) / factor;
 }
 
-extern "C" __global__ void SetupClusters(LbvhNode* bvhNodes, PrimRef* __restrict__ primRefs, u32* __restrict__ sortedPrimIdx, Aabb* __restrict__ primitivesAabb, int* __restrict__ nodeIndices, u32 primCount)
+extern "C" __global__ void SetupClusters(Bvh2Node* bvhNodes, PrimRef* __restrict__ primRefs, u32* __restrict__ sortedPrimIdx, Aabb* __restrict__ primitivesAabb, int* __restrict__ nodeIndices, u32 primCount)
 {
 	u32 gIdx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (gIdx >= primCount) return;
@@ -74,7 +74,7 @@ DEVICE int binaryBlockPrefixSum(bool blockVal, int* blockCache)
 	return blockCache[warpIndex] + warpSum - warpCount + blockVal;
 }
 
-extern "C" __global__ void Ploc(int* nodeIndices0, int* nodeIndices1, LbvhNode* bvhNodes, PrimRef* primRefs, int* nMergedClusters, int* blockOffsetSum, int* atomicBlockCounter, u32 nClusters, u32 nInternalNodes)
+extern "C" __global__ void Ploc(int* nodeIndices0, int* nodeIndices1, Bvh2Node* bvhNodes, PrimRef* primRefs, int* nMergedClusters, int* blockOffsetSum, int* atomicBlockCounter, u32 nClusters, u32 nInternalNodes)
 {
 	int gIdx = blockIdx.x * blockDim.x + threadIdx.x;
 	int blockOffset = blockDim.x * blockIdx.x;
@@ -188,7 +188,7 @@ extern "C" __global__ void Ploc(int* nodeIndices0, int* nodeIndices1, LbvhNode* 
 }
 
 extern "C" __global__ void CollapseToWide4Bvh(
-	LbvhNode* bvh2Nodes, 
+	Bvh2Node* bvh2Nodes, 
 	PrimRef* bvh2LeafNodes, 
 	Bvh4Node* bvh4Nodes,
 	PrimNode* bvh4LeafNodes,
@@ -212,7 +212,7 @@ extern "C" __global__ void CollapseToWide4Bvh(
 		u32 parentIdx = task.y;
 		if (bvh2NodeIdx != INVALID_NODE_IDX && !done)
 		{
-			const LbvhNode& node2 = bvh2Nodes[bvh2NodeIdx];
+			const Bvh2Node& node2 = bvh2Nodes[bvh2NodeIdx];
 			u32 childIdx[4] = { INVALID_NODE_IDX, INVALID_NODE_IDX , INVALID_NODE_IDX , INVALID_NODE_IDX };
 			Aabb childAabb[4];
 			u32 childCount = 2;
@@ -240,7 +240,7 @@ extern "C" __global__ void CollapseToWide4Bvh(
 
 				if (maxAreaChildPos == INVALID_NODE_IDX) break;
 
-				LbvhNode maxChild = bvh2Nodes[childIdx[maxAreaChildPos]];
+				Bvh2Node maxChild = bvh2Nodes[childIdx[maxAreaChildPos]];
 				childIdx[maxAreaChildPos] = maxChild.m_leftChildIdx;
 				childAabb[maxAreaChildPos] = bvh2Nodes[maxChild.m_leftChildIdx].m_aabb;
 				childIdx[childCount] = maxChild.m_rightChildIdx;

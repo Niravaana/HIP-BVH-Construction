@@ -185,7 +185,12 @@ void TwoPassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 		const auto wideBvhNodes = d_wideBvhNodes.getData();
 		const auto wideLeafNodes = d_wideLeafNodes.getData();
 		auto internalNodeOffset = d_internalNodeOffset.getData()[0];
-		auto triangleAabb = d_triangleAabb.getData();
+		auto primRefs = d_primRefs.getData();
+		std::vector<Aabb> triangleAabb(primRefs.size());
+		for (size_t i = 0; i < primRefs.size(); i++)
+		{
+			triangleAabb[primRefs[i].m_primIdx] = primRefs[i].m_aabb;
+		}
 
 		assert(Utility::checkLBvh4Correctness(wideBvhNodes.data(), wideLeafNodes.data(), m_rootNodeIdx, nInternalNodes) == true);
 		m_cost = Utility::calculatebvh4Cost(wideBvhNodes.data(), wideLeafNodes.data(), triangleAabb.data(), m_rootNodeIdx, internalNodeOffset, nInternalNodes);
