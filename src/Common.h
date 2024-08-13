@@ -21,7 +21,7 @@
 #endif
 
 #include <math.h>
-
+#include <cstdint>
 /*
 *  Bunny
 	Transformation t;
@@ -78,9 +78,9 @@
 */
 namespace BvhConstruction
 {
-	using u32 = unsigned int;
-	using u8 = unsigned char;
-	using u64 = unsigned long long;
+	using u32 = uint32_t;
+	using u8 = uint8_t;
+	using u64 = uint64_t;
 
 	constexpr float FltMin = 1.175494351e-38f;
 	constexpr float FltMax = 3.402823466e+38f;

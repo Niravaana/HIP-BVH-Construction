@@ -27,7 +27,7 @@ void TwoPassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 	Utility::doEarlySplitClipping(primitives, h_primRefs);
 #endif
 
-	const size_t primitiveCount = h_primRefs.size();
+	const u32 primitiveCount = h_primRefs.size();
 	Oro::GpuMemory<PrimRef> d_primRefs(primitiveCount); d_primRefs.reset();
 	OrochiUtils::copyHtoD(d_primRefs.ptr(), h_primRefs.data(), primitiveCount);
 
