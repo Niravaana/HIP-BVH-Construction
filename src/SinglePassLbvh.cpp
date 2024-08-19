@@ -228,7 +228,7 @@ void SinglePassLbvh::traverseBvh(Context& context)
 			std::nullopt);
 
 		generateRaysKernel.setArgs({ d_cam.ptr(), d_rayBuffer.ptr(), width, height });
-		m_timer.measure(TimerCodes::BvhBuildTime, [&]() { generateRaysKernel.launch(gridSizeX, gridSizeY, 1, blockSizeX, blockSizeY, 1); });
+		m_timer.measure(TimerCodes::RayGenTime, [&]() { generateRaysKernel.launch(gridSizeX, gridSizeY, 1, blockSizeX, blockSizeY, 1); });
 	}
 
 #if _CPU																																																						

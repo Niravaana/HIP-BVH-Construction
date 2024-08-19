@@ -74,6 +74,119 @@ DEVICE int binaryBlockPrefixSum(bool blockVal, int* blockCache)
 	return blockCache[warpIndex] + warpSum - warpCount + blockVal;
 }
 
+extern "C" __global__ void SinglePassPloc(int * nodeIndices, Bvh2Node* bvhNodes, PrimRef* primRefs, u32 nClusters, u32 nInternalNodes)
+{
+	int gIdx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (blockIdx.x > 0) return;
+	if (gIdx > PlocBlockSize) return;
+
+	__shared__ int nodeIndicesSharedMem[PlocBlockSize]; 
+	alignas(alignof(Aabb)) __shared__ u8 aabbCache[sizeof(Aabb) * PlocBlockSize];
+	__shared__ u64 neighbourIndicesSharedMem[PlocBlockSize];
+	__shared__ int nNewClusters;
+	__shared__ int nMergedClusters;
+	Aabb* aabbSharedMem = reinterpret_cast<Aabb*>(aabbCache);
+
+	if (gIdx >= 0 && gIdx < nClusters)
+	{
+		int nodeIdx = nodeIndices[gIdx];
+		aabbSharedMem[gIdx] = (nodeIdx >= nInternalNodes) ? primRefs[nodeIdx - nInternalNodes].m_aabb : bvhNodes[nodeIdx].m_aabb;
+		nodeIndicesSharedMem[gIdx] = nodeIdx;
+	}
+	else
+	{
+		aabbSharedMem[gIdx].m_min = { -FltMax, -FltMax , -FltMax };
+		aabbSharedMem[gIdx].m_max = { FltMax, FltMax , FltMax };
+		nodeIndicesSharedMem[gIdx] = INVALID_NODE_IDX;
+	}
+	__syncthreads();
+
+	while (nClusters > 1)
+	{
+		int nodeIdx = nodeIndicesSharedMem[gIdx];
+		neighbourIndicesSharedMem[gIdx] = (u64)-1;
+		__syncthreads();
+
+		u64 minAreadAndIndex = u64(-1);
+		Aabb aabb = aabbSharedMem[gIdx];
+
+		for (int neighbourIdx = gIdx + 1; neighbourIdx < min(nClusters, gIdx + PlocRadius + 1); neighbourIdx++)
+		{
+			Aabb neighbourAabb = aabbSharedMem[neighbourIdx];
+			neighbourAabb.grow(aabb);
+			float area = neighbourAabb.area();
+
+			u64 encode0 = (u64(__float_as_int(area)) << 32ull) | u64(neighbourIdx);
+			minAreadAndIndex = min(minAreadAndIndex, encode0);
+			u64 encode1 = (u64(__float_as_int(area)) << 32ull) | u64(gIdx);
+			atomicMin(&neighbourIndicesSharedMem[neighbourIdx], encode1);
+		}
+
+		atomicMin(&neighbourIndicesSharedMem[gIdx], minAreadAndIndex);
+
+		if (gIdx == 0) nMergedClusters = 0;
+
+		__syncthreads();
+		
+
+		if (gIdx < nClusters)
+		{
+			int currentClusterIdx = gIdx;
+			int leftChildIdx = nodeIndicesSharedMem[currentClusterIdx];
+			int neighbourIdx = (neighbourIndicesSharedMem[currentClusterIdx] & 0xffffffff);
+			int rightChildIdx = nodeIndicesSharedMem[neighbourIdx];
+			int neighboursNeighbourIDx = (neighbourIndicesSharedMem[neighbourIdx] & 0xffffffff);
+
+			bool merge = false;
+			if (currentClusterIdx == neighboursNeighbourIDx)
+			{
+				if (currentClusterIdx < neighbourIdx) 
+					merge = true;
+				else
+				{
+					aabb.m_min = { -FltMax, -FltMax , -FltMax };
+					aabb.m_max = { FltMax, FltMax , FltMax };
+					nodeIdx = INVALID_NODE_IDX;
+				}
+			}
+
+			int mergedNodeIdx = nClusters - 2 - binaryWarpPrefixSum(merge, &nMergedClusters);
+			if (merge)
+			{
+				aabb.grow(aabbSharedMem[neighbourIdx]);
+				bvhNodes[mergedNodeIdx].m_leftChildIdx = leftChildIdx;
+				bvhNodes[mergedNodeIdx].m_rightChildIdx = rightChildIdx;
+				bvhNodes[mergedNodeIdx].m_aabb = aabb;
+				nodeIdx = mergedNodeIdx;
+			}
+		}
+
+		__syncthreads();
+
+		int newblockOffset = binaryBlockPrefixSum(nodeIdx != INVALID_NODE_IDX, nodeIndicesSharedMem);
+		aabbSharedMem[gIdx].m_min = { -FltMax, -FltMax , -FltMax };
+		aabbSharedMem[gIdx].m_max = { FltMax, FltMax , FltMax };
+		nodeIndicesSharedMem[gIdx] = INVALID_NODE_IDX;
+		
+		__syncthreads();
+
+		if (gIdx == blockDim.x - 1) nNewClusters = newblockOffset;
+
+		if (gIdx < nClusters)
+		{
+			if (nodeIdx != INVALID_NODE_IDX)
+			{
+				const int newClusterIdx = newblockOffset - 1;
+				aabbSharedMem[newClusterIdx] = aabb;
+				nodeIndicesSharedMem[newClusterIdx] = nodeIdx;
+			}
+		}
+
+		__syncthreads();
+		nClusters = nNewClusters;
+	}//while
+}
+
 extern "C" __global__ void Ploc(int* nodeIndices0, int* nodeIndices1, Bvh2Node* bvhNodes, PrimRef* primRefs, int* nMergedClusters, int* blockOffsetSum, int* atomicBlockCounter, u32 nClusters, u32 nInternalNodes)
 {
 	int gIdx = blockIdx.x * blockDim.x + threadIdx.x;

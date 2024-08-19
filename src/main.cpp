@@ -12,7 +12,10 @@
 #include "TwoPassLbvh.h"
 #include "BinnedSahBvh.h"
 #include "PLOC++Bvh.h"
+#include "Hploc.h"
+#include "BatchedBuilder.h"
 
+#define USE_HPLOC 1 
 using namespace BvhConstruction;
 
 int main(int argc, char* argv[])
@@ -21,14 +24,53 @@ int main(int argc, char* argv[])
 	{
 		Context context;
 		Timer timer;
-		PLOCNew bvh;
+
+#if defined USE_BATCHED_BUILDER	
+		{
+			std::vector<Triangle> triangles;
+			MeshLoader::loadScene("../src/meshes/cornellbox/cornellbox.obj", "../src/meshes/cornellbox/", triangles);
+
+			BatchedBvhBuilder bvh;
+			constexpr u32 batchSize = 2048 * 2;
+			std::vector<BatchedBuildInput> batches(batchSize);
+
+			for (size_t i = 0; i < batchSize; i++)
+			{
+				batches[i].m_primitives = triangles;
+			}
+
+			bvh.build(context, batches);
+			bvh.traverseBvh(context);
+		}
+#endif
 
 		std::vector<Triangle> triangles;
-		//MeshLoader::loadScene("../src/meshes/cornellbox/cornellbox.obj", "../src/meshes/cornellbox/", triangles);
-		MeshLoader::loadScene("../src/meshes/bunny/bunny.obj", "../src/bunny/bunny/", triangles);
-
+		MeshLoader::loadScene("../src/meshes/cornellbox/cornellbox.obj", "../src/meshes/cornellbox/", triangles);
+	
+#if defined USE_SINGLEPASS_LBVH
+		SinglePassLbvh bvh;
 		bvh.build(context, triangles);
 		bvh.traverseBvh(context);
+#endif 
+	
+#if defined USE_TWOPASS_LBVH
+		TwoPassLbvh bvh;
+		bvh.build(context, triangles);
+		bvh.traverseBvh(context);
+#endif
+		
+#if defined USE_PLOC
+		PLOCNew bvh;
+		bvh.build(context, triangles);
+		bvh.traverseBvh(context);
+#endif
+
+#if defined USE_HPLOC
+		HPLOC bvh;
+		bvh.build(context, triangles);
+		bvh.traverseBvh(context);
+#endif
+
 	}
 	catch (std::exception& e)
 	{

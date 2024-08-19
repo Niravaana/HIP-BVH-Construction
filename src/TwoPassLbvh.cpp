@@ -236,7 +236,7 @@ void TwoPassLbvh::traverseBvh(Context& context)
 			std::nullopt);
 
 		generateRaysKernel.setArgs({ d_cam.ptr(), d_rayBuffer.ptr(), width, height });
-		m_timer.measure(TimerCodes::BvhBuildTime, [&]() { generateRaysKernel.launch(gridSizeX, gridSizeY, 1, blockSizeX, blockSizeY, 1); });
+		m_timer.measure(TimerCodes::RayGenTime, [&]() { generateRaysKernel.launch(gridSizeX, gridSizeY, 1, blockSizeX, blockSizeY, 1); });
 	}
 
 	Oro::GpuMemory<u8> d_colorBuffer(width * height * 4); d_colorBuffer.reset();

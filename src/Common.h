@@ -89,6 +89,7 @@ namespace BvhConstruction
 	constexpr float Pi = 3.14159265358979323846f;
 	constexpr u32 INVALID_NODE_IDX = 0xFFFFFFFF;
 	constexpr u32 INVALID_PRIM_IDX = 0xFFFFFFFF;
+	constexpr u32 INVALID_VALUE = 0xFFFFFFFF;
 
 	enum Error
 	{
@@ -276,8 +277,6 @@ namespace BvhConstruction
 		return float3{ (x, y, z) };
 	}
 
-
-
 	HOST_DEVICE INLINE float dot(const float3& a, const float3& b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
 
 	HOST_DEVICE INLINE float3 normalize(const float3& a) { return a / sqrtf(dot(a, a)); }
@@ -407,6 +406,8 @@ DEVICE INLINE float atomicMaxFloat(float* addr, float value)
 			atomicMaxFloat(&m_max.y, aabb.m_max.y);
 			atomicMaxFloat(&m_max.z, aabb.m_max.z);
 		}
+
+
 #endif
 
 	public:
@@ -421,7 +422,8 @@ DEVICE INLINE float atomicMaxFloat(float* addr, float value)
 		SortingTime,
 		BvhBuildTime,
 		TraversalTime,
-		CollapseBvhTime
+		CollapseBvhTime,
+		RayGenTime
 	};
 
 	struct alignas(64) Triangle
@@ -582,7 +584,14 @@ DEVICE INLINE float atomicMaxFloat(float* addr, float value)
 		float2 m_uv; //barycentric coordinates
 	};
 
+	struct D_BatchedBuildInputs
+	{
+		Triangle* m_prims;
+		u32 m_nPrimtives;
+	};
+
 	constexpr int PlocBlockSize = 1024;
 	constexpr int PlocRadius = 10;
 	constexpr int ReductionBlockSize = 256;
+	constexpr u32 MaxBatchedBlockSize = 32;
 }

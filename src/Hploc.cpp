@@ -1,4 +1,4 @@
-#include "PLOC++Bvh.h"
+#include "HPLOC.h"
 #include <src/Utility.h>
 #include <dependencies/stbi/stbi_image_write.h>
 #include <dependencies/stbi/stb_image.h>
@@ -13,7 +13,7 @@ using namespace BvhConstruction;
 #define IFIF 1
 #define USE_GPU_WIDE_COLLAPSE 1
 
-void PLOCNew::build(Context& context, std::vector<Triangle>& primitives)
+void HPLOC::build(Context& context, std::vector<Triangle>& primitives)
 {
  	const size_t primitiveCount = primitives.size();
 	d_triangleBuff.resize(primitiveCount); d_triangleBuff.reset();
@@ -37,6 +37,7 @@ void PLOCNew::build(Context& context, std::vector<Triangle>& primitives)
 		m_timer.measure(TimerCodes::CalculateCentroidExtentsTime, [&]() { centroidExtentsKernel.launch(primitiveCount, ReductionBlockSize); });
 	}
 
+	Oro::GpuMemory<u32> d_parentIdx(primitiveCount); d_parentIdx.reset();
 	d_mortonCodeKeys.resize(primitiveCount); d_mortonCodeKeys.reset();
 	d_mortonCodeValues.resize(primitiveCount); d_mortonCodeValues.reset();
 	d_sortedMortonCodeKeys.resize(primitiveCount); d_sortedMortonCodeKeys.reset();
@@ -89,13 +90,9 @@ void PLOCNew::build(Context& context, std::vector<Triangle>& primitives)
 
 	int invalid = INVALID_NODE_IDX;
 	Oro::GpuMemory<int> d_nodeIdx0(primitiveCount); 
-	Oro::GpuMemory<int> d_nodeIdx1(primitiveCount); 
-	Oro::GpuMemory<int> d_nMergedClusters(1); 
-	Oro::GpuMemory<int> d_blockOffsetSum(1);
-	Oro::GpuMemory<int> d_atomicBlockCounter(1);
+	Oro::GpuMemory<int> d_nMergedCluster(1); d_nMergedCluster.reset();
 	
 	OrochiUtils::memset(d_nodeIdx0.ptr(), invalid, sizeof(int) * primitiveCount);
-	OrochiUtils::memset(d_nodeIdx1.ptr(), invalid, sizeof(int) * primitiveCount);
 	
 	{
 		Kernel setupClusterKernel;
@@ -103,52 +100,25 @@ void PLOCNew::build(Context& context, std::vector<Triangle>& primitives)
 		buildKernelFromSrc(
 			setupClusterKernel,
 			context.m_orochiDevice,
-			"../src/Ploc++Kernel.h",
+			"../src/HplocKernel.h",
 			"SetupClusters",
 			std::nullopt);
 
-		setupClusterKernel.setArgs({d_bvhNodes.ptr(),  d_leafNodes.ptr(), d_sortedMortonCodeValues.ptr() , d_triangleAabb.ptr(), d_nodeIdx0.ptr(), primitiveCount });
+		setupClusterKernel.setArgs({d_bvhNodes.ptr(),  d_leafNodes.ptr(), d_sortedMortonCodeValues.ptr() , d_triangleAabb.ptr(), d_nodeIdx0.ptr(), d_parentIdx.ptr(), primitiveCount });
 		m_timer.measure(TimerCodes::CalculateMortonCodesTime, [&]() { setupClusterKernel.launch(primitiveCount); });
 	}
-
-	Kernel plocKernel;
-	Kernel singlePassPlocKernel;
-
-	buildKernelFromSrc(
-		plocKernel,
-		context.m_orochiDevice,
-		"../src/Ploc++Kernel.h",
-		"Ploc",
-		std::nullopt);
-
-	buildKernelFromSrc(
-		singlePassPlocKernel,
-		context.m_orochiDevice,
-		"../src/Ploc++Kernel.h",
-		"SinglePassPloc",
-		std::nullopt);
-
-	
-	while (nClusters > 1)
 	{
-		d_nMergedClusters.reset(); d_blockOffsetSum.reset(); d_atomicBlockCounter.reset();
-		int* nodeIndices0 = !swapBuffer ? d_nodeIdx0.ptr() : d_nodeIdx1.ptr();
-		int* nodeIndices1 = !swapBuffer ? d_nodeIdx1.ptr() : d_nodeIdx0.ptr();
+		Kernel hplocKernel;
 
-		if (nClusters < PlocBlockSize)
-		{
-			singlePassPlocKernel.setArgs({ nodeIndices0,  d_bvhNodes.ptr(), d_leafNodes.ptr(), nClusters, nInternalNodes });
-			m_timer.measure(TimerCodes::BvhBuildTime, [&]() { singlePassPlocKernel.launch(nClusters, PlocBlockSize); });
-			break;
-		}
+		buildKernelFromSrc(
+			hplocKernel,
+			context.m_orochiDevice,
+			"../src/HplocKernel.h",
+			"HPloc",
+			std::nullopt);
 
-		{
-			plocKernel.setArgs({ nodeIndices0, nodeIndices1, d_bvhNodes.ptr(), d_leafNodes.ptr(), d_nMergedClusters.ptr(), d_blockOffsetSum.ptr(),  d_atomicBlockCounter.ptr(), nClusters, nInternalNodes});
-			m_timer.measure(TimerCodes::BvhBuildTime, [&]() { plocKernel.launch(nClusters, PlocBlockSize); });
-		}
-
-		nClusters = nClusters - d_nMergedClusters.getData()[0];
-		swapBuffer = !swapBuffer;
+		hplocKernel.setArgs({ d_bvhNodes.ptr(), d_leafNodes.ptr(), d_sortedMortonCodeKeys.ptr(), d_nodeIdx0.ptr(), d_parentIdx.ptr(), d_nMergedCluster, nClusters, nInternalNodes });
+		m_timer.measure(TimerCodes::BvhBuildTime, [&]() { hplocKernel.launch(nClusters, PlocBlockSize); });
 	}
 
 	const auto h_bvhNodes = d_bvhNodes.getData();
@@ -195,7 +165,7 @@ void PLOCNew::build(Context& context, std::vector<Triangle>& primitives)
 	m_cost = Utility::calculatebvh4Cost(wideBvhNodes.data(), wideLeafNodes.data(), triangleAabb.data(), m_rootNodeIdx, internalNodeOffset, nInternalNodes);
 }
 
-void PLOCNew::traverseBvh(Context& context)
+void HPLOC::traverseBvh(Context& context)
 {
 	std::cout << "==========================Perf Times==========================" << std::endl;
 	std::cout << "CalculateCentroidExtentsTime :" << m_timer.getTimeRecord(CalculateCentroidExtentsTime) << "ms" << std::endl;

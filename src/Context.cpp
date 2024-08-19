@@ -10,14 +10,18 @@ Context::Context()
 	CHECK_ORO(oroInit(0));
 	CHECK_ORO(oroDeviceGet(&m_orochiDevice, 0)); // deviceId should be taken from user?
 	CHECK_ORO(oroCtxCreate(&m_orochiCtxt, 0, m_orochiDevice));
-	oroDeviceProp props;
-	CHECK_ORO(oroGetDeviceProperties(&props, m_orochiDevice));
-	std::cout << "Executing on '" << props.name << "'" << std::endl;
+	CHECK_ORO(oroGetDeviceProperties(&m_devProp, m_orochiDevice));
+	std::cout << "Executing on '" << m_devProp.name << "'" << std::endl;
 }
 
 BvhConstruction::Context::~Context()
 {
 	CHECK_ORO(oroCtxDestroy(m_orochiCtxt));
+}
+
+u32 BvhConstruction::Context::getMaxGridSize() const
+{
+	return m_devProp.maxGridSize[0];
 }
 
 
