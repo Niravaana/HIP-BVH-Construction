@@ -91,9 +91,11 @@ void HPLOC::build(Context& context, std::vector<Triangle>& primitives)
 	int invalid = INVALID_NODE_IDX;
 	Oro::GpuMemory<int> d_nodeIdx0(primitiveCount); 
 	Oro::GpuMemory<int> d_nMergedCluster(1); d_nMergedCluster.reset();
+	Oro::GpuMemory<int> d_test(primitiveCount); d_test.reset();
+	Oro::GpuMemory<uint2> d_spans(primitiveCount); d_spans.reset();
+	Oro::GpuMemory<uint2> d_spans2(primitiveCount); d_spans2.reset();
 	
 	OrochiUtils::memset(d_nodeIdx0.ptr(), invalid, sizeof(int) * primitiveCount);
-	
 	{
 		Kernel setupClusterKernel;
 
@@ -117,10 +119,14 @@ void HPLOC::build(Context& context, std::vector<Triangle>& primitives)
 			"HPloc",
 			std::nullopt);
 
-		hplocKernel.setArgs({ d_bvhNodes.ptr(), d_leafNodes.ptr(), d_sortedMortonCodeKeys.ptr(), d_nodeIdx0.ptr(), d_parentIdx.ptr(), d_nMergedCluster, nClusters, nInternalNodes });
+		hplocKernel.setArgs({ d_bvhNodes.ptr(), d_leafNodes.ptr(), d_sortedMortonCodeKeys.ptr(), d_nodeIdx0.ptr(), d_parentIdx.ptr(), d_nMergedCluster, nClusters, nInternalNodes, d_test.ptr(), d_spans.ptr(), d_spans2.ptr()});
 		m_timer.measure(TimerCodes::BvhBuildTime, [&]() { hplocKernel.launch(nClusters, PlocBlockSize); });
 	}
 
+
+	const auto ttt = d_test.getData();
+	const auto txt = d_spans.getData();
+	const auto txt2 = d_spans2.getData();
 	const auto h_bvhNodes = d_bvhNodes.getData();
 	const auto h_leafNodes = d_leafNodes.getData();
 	assert(Utility::checkPlocBvh2Correctness(h_bvhNodes.data(), h_leafNodes.data(), m_rootNodeIdx, nLeafNodes, nInternalNodes) == true);

@@ -34,7 +34,7 @@ extern "C" __global__ void InitBvhNodes(
 
 DEVICE uint64_t findHighestDiffBit(const u32* __restrict__ mortonCodes, int i, int j, int n)
 {
-	if (j < 0 || j >= n) return ~0ull;
+	if (i < 0 || j >= n) return ~0ull;
 	const uint64_t a = (static_cast<uint64_t>(mortonCodes[i]) << 32ull) | i;
 	const uint64_t b = (static_cast<uint64_t>(mortonCodes[j]) << 32ull) | j;
 	return a ^ b;
