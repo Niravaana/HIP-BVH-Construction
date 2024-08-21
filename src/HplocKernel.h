@@ -141,8 +141,7 @@ DEVICE int mergeClusters(u32 nPrims, u64* nearestNeighbours, int* clusterIndices
 	int neighbourIdx = (nearestNeighbours[currentClusterIdx] & 0xffffffff);
 	int rightChildIdx = clusterIndices[neighbourIdx];
 	int neighboursNeighbourIDx = (nearestNeighbours[neighbourIdx] & 0xffffffff);
-	
-	
+
 	int nodeIdx = INVALID_NODE_IDX;
 	bool merge = false;
 	if (currentClusterIdx == neighboursNeighbourIDx)
@@ -155,9 +154,15 @@ DEVICE int mergeClusters(u32 nPrims, u64* nearestNeighbours, int* clusterIndices
 		nodeIdx = leftChildIdx;
 	}
 
+	int nodeOffset = 0;
+	int totalNodesCreated = __popcll(__ballot(merge));
+	if (laneIndex == 0) nodeOffset = atomicAdd(nMergedClusters, totalNodesCreated);
+	nodeOffset = __shfl(nodeOffset, 0);
+
+	int mergedNodeIdx = nInternalNodes - nodeOffset - ScanWarpBinary(merge);
 	Aabb aabb;
+	aabb = (nodeIdx != INVALID_NODE_IDX) ? aabbSharedMem[nodeIdx] : aabb;
 	
-	int mergedNodeIdx = nInternalNodes - ScanWarpBinary(merge);
 	if (merge)
 	{
 		aabb = aabbSharedMem[currentClusterIdx];
@@ -169,12 +174,9 @@ DEVICE int mergeClusters(u32 nPrims, u64* nearestNeighbours, int* clusterIndices
 	}
 
 	__syncthreads();
-
 	int newClusterIdx = ScanWarpBinary(nodeIdx != INVALID_NODE_IDX);
-
 	clusterIndices[newClusterIdx] = nodeIdx;
-	aabbSharedMem[newClusterIdx] = aabb;
-
+	aabbSharedMem[newClusterIdx] = aabb ;
 	__syncthreads();
 
 	return __popcll(__ballot(nodeIdx != INVALID_NODE_IDX));
@@ -236,19 +238,12 @@ DEVICE void plocMerge(u32 laneId, u32 L, u32 R, u32 split, bool finalR, int* nod
 
 	u32 threshold = (__shfl(finalR, laneId) == true) ? 1 : (WarpSize / 2);
 	
-	if(nPrims > threshold)
+	while(nPrims > threshold)
 	{
 		findNearestNeighbours(nPrims, nearestNeighbours, clusterIndices, aabbSharedMem, bvhNodes, primRefs, nInternalNodes);
 		nPrims = mergeClusters(nPrims, nearestNeighbours, clusterIndices, aabbSharedMem, bvhNodes, primRefs, nMergedClusters, nInternalNodes, d_test, d_spans);
 		d_spans[laneIndex] = { nPrims, 0 };
 	}
-	if(nPrims > threshold)
-	{
-		findNearestNeighbours(nPrims, nearestNeighbours, clusterIndices, aabbSharedMem, bvhNodes, primRefs, nInternalNodes);
-		nPrims = mergeClusters(nPrims, nearestNeighbours, clusterIndices, aabbSharedMem, bvhNodes, primRefs, nMergedClusters, nInternalNodes, d_test, d_spans);
-		d_test[laneIndex] = nPrims;
-	}
-	
 	storeIndices(nLeft + nRight, clusterIndices, nodeIndices0, Lstart);
 }
 

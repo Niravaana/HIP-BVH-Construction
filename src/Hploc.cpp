@@ -123,7 +123,7 @@ void HPLOC::build(Context& context, std::vector<Triangle>& primitives)
 		m_timer.measure(TimerCodes::BvhBuildTime, [&]() { hplocKernel.launch(nClusters, PlocBlockSize); });
 	}
 
-
+	const auto extt = d_sceneExtents.getData();
 	const auto ttt = d_test.getData();
 	const auto txt = d_spans.getData();
 	const auto txt2 = d_spans2.getData();
