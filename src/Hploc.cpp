@@ -91,7 +91,7 @@ void HPLOC::build(Context& context, std::vector<Triangle>& primitives)
 	int invalid = INVALID_NODE_IDX;
 	Oro::GpuMemory<int> d_nodeIdx0(primitiveCount); 
 	Oro::GpuMemory<int> d_nMergedCluster(1); d_nMergedCluster.reset();
-	Oro::GpuMemory<int> d_test(primitiveCount); d_test.reset();
+	Oro::GpuMemory<u32> d_test(primitiveCount); d_test.reset();
 	Oro::GpuMemory<uint2> d_spans(primitiveCount); d_spans.reset();
 	Oro::GpuMemory<uint2> d_spans2(primitiveCount); d_spans2.reset();
 	
