@@ -136,18 +136,21 @@ DEVICE int mergeClusters(u32 nPrims, u64* nearestNeighbours, int* clusterIndices
 {
 	const int laneIndex = threadIdx.x & (WarpSize - 1);
 	bool laneActive = laneIndex < nPrims;
-
-	int currentClusterIdx = laneIndex;
-	int leftChildIdx = clusterIndices[currentClusterIdx];
-	int neighbourIdx = (nearestNeighbours[currentClusterIdx] & 0xffffffff);
-	int rightChildIdx = clusterIndices[neighbourIdx];
-	int neighboursNeighbourIDx = (nearestNeighbours[neighbourIdx] & 0xffffffff);
-	Aabb aabb = aabbSharedMem[currentClusterIdx];
+	
 	int nodeIdx = INVALID_NODE_IDX;
 	bool merge = false;
-	
+	Aabb aabb;
+	aabb.m_min = {-FltMax, -FltMax , -FltMax};
+	aabb.m_max = {FltMax, FltMax , FltMax};
 	if (laneActive)
 	{
+		int currentClusterIdx = laneIndex;
+		aabb = aabbSharedMem[currentClusterIdx];
+		int leftChildIdx = clusterIndices[currentClusterIdx];
+		int neighbourIdx = (nearestNeighbours[currentClusterIdx] & 0xffffffff);
+		int rightChildIdx = clusterIndices[neighbourIdx];
+		int neighboursNeighbourIDx = (nearestNeighbours[neighbourIdx] & 0xffffffff);
+
 		if (currentClusterIdx == neighboursNeighbourIDx)
 		{
 			if (currentClusterIdx < neighbourIdx)
@@ -164,7 +167,7 @@ DEVICE int mergeClusters(u32 nPrims, u64* nearestNeighbours, int* clusterIndices
 		nodeOffset = __shfl(nodeOffset, 0);
 
 		int mergedNodeIdx = nInternalNodes - nodeOffset - ScanWarpBinary(merge);
-
+		
 		if (merge)
 		{
 			aabb.grow(aabbSharedMem[neighbourIdx]);
@@ -173,15 +176,12 @@ DEVICE int mergeClusters(u32 nPrims, u64* nearestNeighbours, int* clusterIndices
 			bvhNodes[mergedNodeIdx].m_aabb = aabb;
 			nodeIdx = mergedNodeIdx;
 		}
-
 	}
-
 	__syncthreads();
 	int newClusterIdx = ScanWarpBinary(nodeIdx != INVALID_NODE_IDX);
 	clusterIndices[newClusterIdx] = nodeIdx;
 	aabbSharedMem[newClusterIdx] = aabb ;
 	__syncthreads();
-
 	return __popcll(__ballot(nodeIdx != INVALID_NODE_IDX));
 }
 
@@ -210,7 +210,7 @@ DEVICE void storeIndices(u32 nClusters, int* clusterIndices, int* nodeIndices0, 
 
 	if (isLaneActive)
 	{
-		if (clusterIndices[laneIndex] != INVALID_NODE_IDX)
+		//if (clusterIndices[laneIndex] != INVALID_NODE_IDX)
 		{
 			nodeIndices0[Lstart + laneIndex] = clusterIndices[laneIndex];
 		}
@@ -245,8 +245,8 @@ DEVICE void plocMerge(u32 laneId, u32 L, u32 R, u32 split, bool finalR, int* nod
 	{
 		findNearestNeighbours(nPrims, nearestNeighbours, clusterIndices, aabbSharedMem, bvhNodes, primRefs, nInternalNodes);
 		nPrims = mergeClusters(nPrims, nearestNeighbours, clusterIndices, aabbSharedMem, bvhNodes, primRefs, nMergedClusters, nInternalNodes, d_test, d_spans);
-		d_spans[laneIndex] = { nPrims, 0 };
 	}
+
 	storeIndices(nLeft + nRight, clusterIndices, nodeIndices0, Lstart);
 }
 
@@ -259,8 +259,9 @@ extern "C" __global__ void HPloc(Bvh2Node* bvhNodes, PrimRef* primRefs, u32* mor
 	bool laneIsActive = (gIdx < nClusters);
 	u32 previousId = INVALID_NODE_IDX;
 	u32 split = INVALID_VALUE;
+	
 
-	while (__ballot(laneIsActive))
+	while (__any(laneIsActive))
 	{
 		if (laneIsActive)
 		{
@@ -294,11 +295,10 @@ extern "C" __global__ void HPloc(Bvh2Node* bvhNodes, PrimRef* primRefs, u32* mor
 
 		u32 size = R - L + 1;
 		bool finalR = (laneIsActive && (size == nClusters)); //reached root need to stop
-		u64 waveMask = __ballot((laneIsActive && (size > WarpSize / 2)) || finalR);
-		//d_spans[gIdx] = { L, R };
+		u64 waveMask = __ballot(laneIsActive && (size > WarpSize / 2) || finalR);
+
 		while (waveMask != 0ull)
 		{
-			
 			u32 laneId = __ffsll(static_cast<unsigned long long>(waveMask)) - 1;
 			plocMerge(laneId, L, R, split, finalR, nodeIndices0, bvhNodes, primRefs, nMergedClusters, nInternalNodes, d_test, d_spans, d_spans2);
 			waveMask = waveMask & (waveMask - 1ull);

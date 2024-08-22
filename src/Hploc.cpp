@@ -119,7 +119,7 @@ void HPLOC::build(Context& context, std::vector<Triangle>& primitives)
 			"HPloc",
 			std::nullopt);
 
-		hplocKernel.setArgs({ d_bvhNodes.ptr(), d_leafNodes.ptr(), d_sortedMortonCodeKeys.ptr(), d_nodeIdx0.ptr(), d_parentIdx.ptr(), d_nMergedCluster, nClusters, nInternalNodes, d_test.ptr(), d_spans.ptr(), d_spans2.ptr()});
+		hplocKernel.setArgs({ d_bvhNodes.ptr(), d_leafNodes.ptr(), d_sortedMortonCodeKeys.ptr(), d_nodeIdx0.ptr(), d_parentIdx.ptr(), d_nMergedCluster.ptr(), nClusters, nInternalNodes, d_test.ptr(), d_spans.ptr(), d_spans2.ptr()});
 		m_timer.measure(TimerCodes::BvhBuildTime, [&]() { hplocKernel.launch(nClusters, PlocBlockSize); });
 	}
 
@@ -127,6 +127,7 @@ void HPLOC::build(Context& context, std::vector<Triangle>& primitives)
 	const auto ttt = d_test.getData();
 	const auto txt = d_spans.getData();
 	const auto txt2 = d_spans2.getData();
+	const auto tmt = d_nodeIdx0.getData();
 	const auto h_bvhNodes = d_bvhNodes.getData();
 	const auto h_leafNodes = d_leafNodes.getData();
 	assert(Utility::checkPlocBvh2Correctness(h_bvhNodes.data(), h_leafNodes.data(), m_rootNodeIdx, nLeafNodes, nInternalNodes) == true);
