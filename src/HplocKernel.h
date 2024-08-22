@@ -135,42 +135,45 @@ DEVICE int ScanWarpBinary(bool x)
 DEVICE int mergeClusters(u32 nPrims, u64* nearestNeighbours, int* clusterIndices, Aabb* aabbSharedMem, Bvh2Node* bvhNodes, PrimRef* primRefs, int* nMergedClusters, u32 nInternalNodes, u32* d_test, uint2* d_spans)
 {
 	const int laneIndex = threadIdx.x & (WarpSize - 1);
-	
+	bool laneActive = laneIndex < nPrims;
+
 	int currentClusterIdx = laneIndex;
 	int leftChildIdx = clusterIndices[currentClusterIdx];
 	int neighbourIdx = (nearestNeighbours[currentClusterIdx] & 0xffffffff);
 	int rightChildIdx = clusterIndices[neighbourIdx];
 	int neighboursNeighbourIDx = (nearestNeighbours[neighbourIdx] & 0xffffffff);
-
+	Aabb aabb = aabbSharedMem[currentClusterIdx];
 	int nodeIdx = INVALID_NODE_IDX;
 	bool merge = false;
-	if (currentClusterIdx == neighboursNeighbourIDx)
-	{
-		if (currentClusterIdx < neighbourIdx)
-			merge = true;
-	}
-	else
-	{
-		nodeIdx = leftChildIdx;
-	}
-
-	int nodeOffset = 0;
-	int totalNodesCreated = __popcll(__ballot(merge));
-	if (laneIndex == 0) nodeOffset = atomicAdd(nMergedClusters, totalNodesCreated);
-	nodeOffset = __shfl(nodeOffset, 0);
-
-	int mergedNodeIdx = nInternalNodes - nodeOffset - ScanWarpBinary(merge);
-	Aabb aabb;
-	aabb = (nodeIdx != INVALID_NODE_IDX) ? aabbSharedMem[nodeIdx] : aabb;
 	
-	if (merge)
+	if (laneActive)
 	{
-		aabb = aabbSharedMem[currentClusterIdx];
-		aabb.grow(aabbSharedMem[neighbourIdx]);
-		bvhNodes[mergedNodeIdx].m_leftChildIdx = leftChildIdx;
-		bvhNodes[mergedNodeIdx].m_rightChildIdx = rightChildIdx;
-		bvhNodes[mergedNodeIdx].m_aabb = aabb;
-		nodeIdx = mergedNodeIdx;
+		if (currentClusterIdx == neighboursNeighbourIDx)
+		{
+			if (currentClusterIdx < neighbourIdx)
+				merge = true;
+		}
+		else
+		{
+			nodeIdx = leftChildIdx;
+		}
+
+		int nodeOffset = 0;
+		int totalNodesCreated = __popcll(__ballot(merge));
+		if (laneIndex == 0) nodeOffset = atomicAdd(nMergedClusters, totalNodesCreated);
+		nodeOffset = __shfl(nodeOffset, 0);
+
+		int mergedNodeIdx = nInternalNodes - nodeOffset - ScanWarpBinary(merge);
+
+		if (merge)
+		{
+			aabb.grow(aabbSharedMem[neighbourIdx]);
+			bvhNodes[mergedNodeIdx].m_leftChildIdx = leftChildIdx;
+			bvhNodes[mergedNodeIdx].m_rightChildIdx = rightChildIdx;
+			bvhNodes[mergedNodeIdx].m_aabb = aabb;
+			nodeIdx = mergedNodeIdx;
+		}
+
 	}
 
 	__syncthreads();
