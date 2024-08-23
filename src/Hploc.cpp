@@ -88,8 +88,8 @@ void HPLOC::build(Context& context, std::vector<Triangle>& primitives)
 	d_leafNodes.resize(primitiveCount); d_leafNodes.reset();
 	d_bvhNodes.resize(nInternalNodes); d_bvhNodes.reset();
 
-	int invalid = INVALID_NODE_IDX;
-	Oro::GpuMemory<int> d_nodeIdx0(primitiveCount); 
+	u32 invalid = INVALID_NODE_IDX;
+	Oro::GpuMemory<u32> d_nodeIdx0(primitiveCount); 
 	Oro::GpuMemory<int> d_nMergedCluster(1); d_nMergedCluster.reset();
 	Oro::GpuMemory<u32> d_test(primitiveCount); d_test.reset();
 	Oro::GpuMemory<uint2> d_spans(primitiveCount); d_spans.reset();
@@ -109,6 +109,9 @@ void HPLOC::build(Context& context, std::vector<Triangle>& primitives)
 		setupClusterKernel.setArgs({d_bvhNodes.ptr(),  d_leafNodes.ptr(), d_sortedMortonCodeValues.ptr() , d_triangleAabb.ptr(), d_nodeIdx0.ptr(), d_parentIdx.ptr(), primitiveCount });
 		m_timer.measure(TimerCodes::CalculateMortonCodesTime, [&]() { setupClusterKernel.launch(primitiveCount); });
 	}
+
+	const auto tmtz = d_nodeIdx0.getData();
+
 	{
 		Kernel hplocKernel;
 
@@ -128,6 +131,7 @@ void HPLOC::build(Context& context, std::vector<Triangle>& primitives)
 	const auto txt = d_spans.getData();
 	const auto txt2 = d_spans2.getData();
 	const auto tmt = d_nodeIdx0.getData();
+	const auto xyz = d_nMergedCluster.getData()[0];
 	const auto h_bvhNodes = d_bvhNodes.getData();
 	const auto h_leafNodes = d_leafNodes.getData();
 	assert(Utility::checkPlocBvh2Correctness(h_bvhNodes.data(), h_leafNodes.data(), m_rootNodeIdx, nLeafNodes, nInternalNodes) == true);
