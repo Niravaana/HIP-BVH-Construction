@@ -91,9 +91,10 @@ void HPLOC::build(Context& context, std::vector<Triangle>& primitives)
 	u32 invalid = INVALID_NODE_IDX;
 	Oro::GpuMemory<u32> d_nodeIdx0(primitiveCount); 
 	Oro::GpuMemory<int> d_nMergedCluster(1); d_nMergedCluster.reset();
-	Oro::GpuMemory<u32> d_test(primitiveCount); d_test.reset();
-	Oro::GpuMemory<uint2> d_spans(primitiveCount); d_spans.reset();
-	Oro::GpuMemory<uint2> d_spans2(primitiveCount); d_spans2.reset();
+	Oro::GpuMemory<u32> d_test(primitiveCount * 2); d_test.reset();
+	Oro::GpuMemory<uint2> d_spans(primitiveCount * 2); d_spans.reset();
+	Oro::GpuMemory<uint2> d_spans2(primitiveCount * 2); d_spans2.reset();
+	Oro::GpuMemory<u32> d_atomicCnt(1); d_atomicCnt.reset();
 	
 	OrochiUtils::memset(d_nodeIdx0.ptr(), invalid, sizeof(int) * primitiveCount);
 	{
@@ -122,7 +123,7 @@ void HPLOC::build(Context& context, std::vector<Triangle>& primitives)
 			"HPloc",
 			std::nullopt);
 
-		hplocKernel.setArgs({ d_bvhNodes.ptr(), d_leafNodes.ptr(), d_sortedMortonCodeKeys.ptr(), d_nodeIdx0.ptr(), d_parentIdx.ptr(), d_nMergedCluster.ptr(), nClusters, nInternalNodes, d_test.ptr(), d_spans.ptr(), d_spans2.ptr()});
+		hplocKernel.setArgs({ d_bvhNodes.ptr(), d_leafNodes.ptr(), d_sortedMortonCodeKeys.ptr(), d_nodeIdx0.ptr(), d_parentIdx.ptr(), d_nMergedCluster.ptr(), nClusters, nInternalNodes, d_test.ptr(), d_spans.ptr(), d_spans2.ptr(), d_atomicCnt.ptr()});
 		m_timer.measure(TimerCodes::BvhBuildTime, [&]() { hplocKernel.launch(nClusters, PlocBlockSize); });
 	}
 
@@ -132,6 +133,7 @@ void HPLOC::build(Context& context, std::vector<Triangle>& primitives)
 	const auto txt2 = d_spans2.getData();
 	const auto tmt = d_nodeIdx0.getData();
 	const auto xyz = d_nMergedCluster.getData()[0];
+	const auto atomi = d_atomicCnt.getData()[0];
 	const auto h_bvhNodes = d_bvhNodes.getData();
 	const auto h_leafNodes = d_leafNodes.getData();
 	assert(Utility::checkPlocBvh2Correctness(h_bvhNodes.data(), h_leafNodes.data(), m_rootNodeIdx, nLeafNodes, nInternalNodes) == true);
