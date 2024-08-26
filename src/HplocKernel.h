@@ -131,7 +131,7 @@ DEVICE u32 ScanWarpBinary(bool x)
 	return __popc(activeMask & ((1u << laneIdx) - 1));
 }
 
-DEVICE int mergeClusters(u32 nPrims, u64* nearestNeighbours, u32* clusterIndices, Aabb* aabbSharedMem, Bvh2Node* bvhNodes, PrimRef* primRefs, int* nMergedClusters, u32 nInternalNodes, u32* d_test, uint2* d_spans)
+DEVICE int mergeClusters(u32 nPrims, u64* nearestNeighbours, u32* clusterIndices, Aabb* aabbSharedMem, Bvh2Node* bvhNodes, PrimRef* primRefs, int* nMergedClusters, u32 nInternalNodes, u32* d_test, uint2* d_spans,  u32* atomicCnt)
 {
 	const int laneIndex = threadIdx.x & (WarpSize - 1);
 	bool laneActive = laneIndex < nPrims;
@@ -147,7 +147,7 @@ DEVICE int mergeClusters(u32 nPrims, u64* nearestNeighbours, u32* clusterIndices
 		u32 neighbourIdx = (nearestNeighbours[currentClusterIdx] & 0xffffffff);
 		u32 rightChildIdx = clusterIndices[neighbourIdx];
 		u32 neighboursNeighbourIDx = (nearestNeighbours[neighbourIdx] & 0xffffffff);
-		clusterIndices[laneIndex] = nodeIdx;
+		clusterIndices[laneIndex] = INVALID_NODE_IDX;
 
 		if (currentClusterIdx == neighboursNeighbourIDx)
 		{
@@ -160,15 +160,15 @@ DEVICE int mergeClusters(u32 nPrims, u64* nearestNeighbours, u32* clusterIndices
 		}
 
 		int nodeOffset = 0;
-		int totalNodesCreated = __popcll(__ballot(merge));
+		int totalNodesCreated = __popc(__ballot(merge));
 		
 		if (laneIndex == 0) nodeOffset = atomicAdd(nMergedClusters, totalNodesCreated);
 		nodeOffset = __shfl(nodeOffset, 0);
-		u32 mergedNodeIdx = nInternalNodes - (nodeOffset) - ScanWarpBinary(merge);
+		u32 baseOffset = (nInternalNodes) - nodeOffset - totalNodesCreated;
+		u32 mergedNodeIdx = baseOffset + ScanWarpBinary(merge);
 		
 		if (merge)
 		{
-			
 			aabb.grow(aabbSharedMem[neighbourIdx]);
 			bvhNodes[mergedNodeIdx].m_leftChildIdx = leftChildIdx;
 			bvhNodes[mergedNodeIdx].m_rightChildIdx = rightChildIdx;
@@ -203,7 +203,8 @@ DEVICE u32 loadIndices(u32 start, u32 end, u32* nodeIndices, u32* clusterIndices
 		}
 		else
 		{
-			aabbSharedMem[laneIndex + offset].reset();
+			aabbSharedMem[laneIndex + offset].m_min = {-FltMax, -FltMax , -FltMax };
+			aabbSharedMem[laneIndex + offset].m_max = { FltMax, FltMax , FltMax };
 		}
 	}
 	__syncthreads();
@@ -242,6 +243,7 @@ DEVICE void plocMerge(u32 laneId, u32 L, u32 R, u32 split, bool finalR, u32* nod
 
 	nearestNeighbours[laneIndex] = (u64)-1;
 	clusterIndices[laneIndex] = INVALID_NODE_IDX;
+	
 	__syncthreads();
 
 	u32 nLeft = loadIndices(Lstart, Lend, nodeIndices0, clusterIndices, aabbSharedMem, bvhNodes, primRefs, nInternalNodes, 0);
@@ -249,12 +251,22 @@ DEVICE void plocMerge(u32 laneId, u32 L, u32 R, u32 split, bool finalR, u32* nod
 	u32 nPrims = nLeft + nRight;
 	u32 threshold = (__shfl(finalR, laneId) == true) ? 1 : (WarpSize / 2);
 
+	if (Lstart == 0 && Rend == 32)
+	{
+		int ddd = atomicAdd(atomicCnt, 1);
+		d_test[ddd] = clusterIndices[laneIndex];
+		d_spans[ddd] = { Lstart, Rend };
+	}
+
 	while(nPrims > threshold)
 	{
 		findNearestNeighbours(nPrims, nearestNeighbours, clusterIndices, aabbSharedMem, bvhNodes, primRefs, nInternalNodes);
-		nPrims = mergeClusters(nPrims, nearestNeighbours, clusterIndices, aabbSharedMem, bvhNodes, primRefs, nMergedClusters, nInternalNodes, d_test, d_spans);
+		nPrims = mergeClusters(nPrims, nearestNeighbours, clusterIndices, aabbSharedMem, bvhNodes, primRefs, nMergedClusters, nInternalNodes, d_test, d_spans, atomicCnt);
 	}
+
+	
 	storeIndices(nLeft + nRight, clusterIndices, nodeIndices0, Lstart);
+	
 }
 
 extern "C" __global__ void HPloc(Bvh2Node* bvhNodes, PrimRef* primRefs, u32* mortonCodes, u32* nodeIndices0, u32* parentIdx, int* nMergedClusters, u32 nClusters, u32 nInternalNodes, u32* d_test, uint2* d_spans, uint2* d_spans2, u32* atomicCnt)
@@ -308,7 +320,10 @@ extern "C" __global__ void HPloc(Bvh2Node* bvhNodes, PrimRef* primRefs, u32* mor
 			u32 laneId = __ffs(waveMask) - 1;
 			plocMerge(laneId, L, R, split, finalR, nodeIndices0, bvhNodes, primRefs, nMergedClusters, nInternalNodes, d_test, d_spans, d_spans2, atomicCnt);
 			waveMask = waveMask & (waveMask - 1u);
+			//break;
 		}//end while
 		
+		//if ((laneIsActive && (size > WarpSize / 2) || finalR))
+			//break;
 	}//While ballot(laneIsActive) end
 }
