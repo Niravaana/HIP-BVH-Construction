@@ -37,7 +37,7 @@ void HPLOC::build(Context& context, std::vector<Triangle>& primitives)
 		m_timer.measure(TimerCodes::CalculateCentroidExtentsTime, [&]() { centroidExtentsKernel.launch(primitiveCount, ReductionBlockSize); });
 	}
 
-	Oro::GpuMemory<u32> d_parentIdx(primitiveCount); d_parentIdx.reset();
+	Oro::GpuMemory<int> d_parentIdx(primitiveCount); d_parentIdx.reset();
 	d_mortonCodeKeys.resize(primitiveCount); d_mortonCodeKeys.reset();
 	d_mortonCodeValues.resize(primitiveCount); d_mortonCodeValues.reset();
 	d_sortedMortonCodeKeys.resize(primitiveCount); d_sortedMortonCodeKeys.reset();
@@ -89,9 +89,9 @@ void HPLOC::build(Context& context, std::vector<Triangle>& primitives)
 	d_bvhNodes.resize(nInternalNodes); d_bvhNodes.reset();
 
 	u32 invalid = INVALID_NODE_IDX;
-	Oro::GpuMemory<u32> d_nodeIdx0(primitiveCount); 
+	Oro::GpuMemory<int> d_nodeIdx0(primitiveCount); 
 	Oro::GpuMemory<int> d_nMergedCluster(1); d_nMergedCluster.reset();
-	Oro::GpuMemory<u32> d_test(primitiveCount * 2); d_test.reset();
+	Oro::GpuMemory<u32> d_test(primitiveCount * 4); d_test.reset();
 	Oro::GpuMemory<uint2> d_spans(primitiveCount * 2); d_spans.reset();
 	Oro::GpuMemory<uint2> d_spans2(primitiveCount * 2); d_spans2.reset();
 	Oro::GpuMemory<u32> d_atomicCnt(1); d_atomicCnt.reset();
@@ -125,7 +125,7 @@ void HPLOC::build(Context& context, std::vector<Triangle>& primitives)
 			std::nullopt);
 
 		hplocKernel.setArgs({ d_bvhNodes.ptr(), d_leafNodes.ptr(), d_sortedMortonCodeKeys.ptr(), d_nodeIdx0.ptr(), d_parentIdx.ptr(), d_nMergedCluster.ptr(), nClusters, nInternalNodes, d_test.ptr(), d_spans.ptr(), d_spans2.ptr(), d_atomicCnt.ptr(), d_debugAabb.ptr()});
-		m_timer.measure(TimerCodes::BvhBuildTime, [&]() { hplocKernel.launch(nClusters, PlocBlockSize); });
+		m_timer.measure(TimerCodes::BvhBuildTime, [&]() { hplocKernel.launch(nInternalNodes, PlocBlockSize); });
 	}
 
 	const auto extt = d_sceneExtents.getData();
