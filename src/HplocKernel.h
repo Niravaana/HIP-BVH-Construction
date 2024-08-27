@@ -153,11 +153,12 @@ DEVICE int mergeClusters(u32 nPrims, u64* nearestNeighbours, u32* clusterIndices
 		{
 			if (currentClusterIdx < neighbourIdx)
 				merge = true;
+			else
+				aabb.reset();
 		}
 		else
 		{
 			nodeIdx = leftChildIdx;
-			aabb = aabbSharedMem[nodeIdx];
 		}
 
 		int nodeOffset = 0;
@@ -257,6 +258,8 @@ DEVICE void plocMerge(u32 laneId, u32 L, u32 R, u32 split, bool finalR, u32* nod
 
 	while(nPrims > threshold)
 	{
+		nearestNeighbours[laneIndex] = (u64)-1;
+		__syncthreads();
 		findNearestNeighbours(nPrims, nearestNeighbours, clusterIndices, aabbSharedMem, bvhNodes, primRefs, nInternalNodes);
 		nPrims = mergeClusters(nPrims, nearestNeighbours, clusterIndices, aabbSharedMem, bvhNodes, primRefs, nMergedClusters, nInternalNodes, d_test, d_spans, atomicCnt);
 	}
