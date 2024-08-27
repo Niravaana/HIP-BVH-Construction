@@ -157,6 +157,7 @@ DEVICE int mergeClusters(u32 nPrims, u64* nearestNeighbours, u32* clusterIndices
 		else
 		{
 			nodeIdx = leftChildIdx;
+			aabb = aabbSharedMem[nodeIdx];
 		}
 
 		int nodeOffset = 0;
@@ -201,11 +202,6 @@ DEVICE u32 loadIndices(u32 start, u32 end, u32* nodeIndices, u32* clusterIndices
 		{
 			aabbSharedMem[laneIndex + offset] = (nodeIdx >= nInternalNodes) ? primRefs[nodeIdx - nInternalNodes].m_aabb : bvhNodes[nodeIdx].m_aabb;
 		}
-		else
-		{
-			aabbSharedMem[laneIndex + offset].m_min = {-FltMax, -FltMax , -FltMax };
-			aabbSharedMem[laneIndex + offset].m_max = { FltMax, FltMax , FltMax };
-		}
 	}
 	__syncthreads();
 
@@ -226,7 +222,7 @@ DEVICE void storeIndices(u32 nClusters, u32* clusterIndices, u32* nodeIndices0, 
 	}
 }
 
-DEVICE void plocMerge(u32 laneId, u32 L, u32 R, u32 split, bool finalR, u32* nodeIndices0, Bvh2Node* bvhNodes, PrimRef* primRefs, int* nMergedClusters, u32 nInternalNodes, u32* d_test,uint2* d_spans, uint2* d_spans2, u32* atomicCnt)
+DEVICE void plocMerge(u32 laneId, u32 L, u32 R, u32 split, bool finalR, u32* nodeIndices0, Bvh2Node* bvhNodes, PrimRef* primRefs, int* nMergedClusters, u32 nInternalNodes, u32* d_test,uint2* d_spans, uint2* d_spans2, u32* atomicCnt, Aabb* debugAabb)
 {
 	
 	const int laneIndex = threadIdx.x & (WarpSize - 1);
@@ -243,7 +239,7 @@ DEVICE void plocMerge(u32 laneId, u32 L, u32 R, u32 split, bool finalR, u32* nod
 
 	nearestNeighbours[laneIndex] = (u64)-1;
 	clusterIndices[laneIndex] = INVALID_NODE_IDX;
-	
+	aabbSharedMem[laneIndex].reset();
 	__syncthreads();
 
 	u32 nLeft = loadIndices(Lstart, Lend, nodeIndices0, clusterIndices, aabbSharedMem, bvhNodes, primRefs, nInternalNodes, 0);
@@ -256,6 +252,7 @@ DEVICE void plocMerge(u32 laneId, u32 L, u32 R, u32 split, bool finalR, u32* nod
 		int ddd = atomicAdd(atomicCnt, 1);
 		d_test[ddd] = clusterIndices[laneIndex];
 		d_spans[ddd] = { Lstart, Rend };
+		debugAabb[ddd] = aabbSharedMem[laneIndex];
 	}
 
 	while(nPrims > threshold)
@@ -269,7 +266,7 @@ DEVICE void plocMerge(u32 laneId, u32 L, u32 R, u32 split, bool finalR, u32* nod
 	
 }
 
-extern "C" __global__ void HPloc(Bvh2Node* bvhNodes, PrimRef* primRefs, u32* mortonCodes, u32* nodeIndices0, u32* parentIdx, int* nMergedClusters, u32 nClusters, u32 nInternalNodes, u32* d_test, uint2* d_spans, uint2* d_spans2, u32* atomicCnt)
+extern "C" __global__ void HPloc(Bvh2Node* bvhNodes, PrimRef* primRefs, u32* mortonCodes, u32* nodeIndices0, u32* parentIdx, int* nMergedClusters, u32 nClusters, u32 nInternalNodes, u32* d_test, uint2* d_spans, uint2* d_spans2, u32* atomicCnt, Aabb* debugAabb)
 {
 	u32 gIdx = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -318,7 +315,7 @@ extern "C" __global__ void HPloc(Bvh2Node* bvhNodes, PrimRef* primRefs, u32* mor
 		while (waveMask)
 		{
 			u32 laneId = __ffs(waveMask) - 1;
-			plocMerge(laneId, L, R, split, finalR, nodeIndices0, bvhNodes, primRefs, nMergedClusters, nInternalNodes, d_test, d_spans, d_spans2, atomicCnt);
+			plocMerge(laneId, L, R, split, finalR, nodeIndices0, bvhNodes, primRefs, nMergedClusters, nInternalNodes, d_test, d_spans, d_spans2, atomicCnt, debugAabb);
 			waveMask = waveMask & (waveMask - 1u);
 			//break;
 		}//end while
