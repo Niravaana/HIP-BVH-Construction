@@ -45,7 +45,7 @@ int main(int argc, char* argv[])
 #endif
 
 		std::vector<Triangle> triangles;
-		MeshLoader::loadScene("../src/meshes/cornellbox/xyz.obj", "../src/meshes/cornellbox/", triangles);
+		MeshLoader::loadScene("../src/meshes/bunny/bunny.obj", "../src/meshes/bunny/", triangles);
 	
 #if defined USE_SINGLEPASS_LBVH
 		SinglePassLbvh bvh;
