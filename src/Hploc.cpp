@@ -37,7 +37,7 @@ void HPLOC::build(Context& context, std::vector<Triangle>& primitives)
 		m_timer.measure(TimerCodes::CalculateCentroidExtentsTime, [&]() { centroidExtentsKernel.launch(primitiveCount, ReductionBlockSize); });
 	}
 
-	Oro::GpuMemory<int> d_parentIdx(primitiveCount); d_parentIdx.reset();
+	Oro::GpuMemory<u32> d_parentIdx(primitiveCount); d_parentIdx.reset();
 	d_mortonCodeKeys.resize(primitiveCount); d_mortonCodeKeys.reset();
 	d_mortonCodeValues.resize(primitiveCount); d_mortonCodeValues.reset();
 	d_sortedMortonCodeKeys.resize(primitiveCount); d_sortedMortonCodeKeys.reset();
@@ -89,14 +89,8 @@ void HPLOC::build(Context& context, std::vector<Triangle>& primitives)
 	d_bvhNodes.resize(nInternalNodes); d_bvhNodes.reset();
 
 	u32 invalid = INVALID_NODE_IDX;
-	Oro::GpuMemory<int> d_nodeIdx0(primitiveCount); 
-	Oro::GpuMemory<int> d_nMergedCluster(1); d_nMergedCluster.reset();
-	Oro::GpuMemory<u32> d_test(primitiveCount * 4); d_test.reset();
-	Oro::GpuMemory<uint2> d_spans(primitiveCount * 2); d_spans.reset();
-	Oro::GpuMemory<uint2> d_spans2(primitiveCount * 2); d_spans2.reset();
-	Oro::GpuMemory<u32> d_atomicCnt(1); d_atomicCnt.reset();
-	Oro::GpuMemory<Aabb> d_debugAabb(primitiveCount * 2); d_debugAabb.reset();
-	Oro::GpuMemory<float> d_debugArea(primitiveCount * 4); d_debugArea.reset();
+	Oro::GpuMemory<u32> d_nodeIdx0(primitiveCount); 
+	Oro::GpuMemory<u32> d_nMergedCluster(1); d_nMergedCluster.reset();
 	OrochiUtils::memset(d_nodeIdx0.ptr(), invalid, sizeof(int) * primitiveCount);
 	{
 		Kernel setupClusterKernel;
@@ -112,8 +106,6 @@ void HPLOC::build(Context& context, std::vector<Triangle>& primitives)
 		m_timer.measure(TimerCodes::CalculateMortonCodesTime, [&]() { setupClusterKernel.launch(primitiveCount); });
 	}
 
-	const auto tmtz = d_nodeIdx0.getData();
-
 	{
 		Kernel hplocKernel;
 
@@ -124,19 +116,10 @@ void HPLOC::build(Context& context, std::vector<Triangle>& primitives)
 			"HPloc",
 			std::nullopt);
 
-		hplocKernel.setArgs({ d_bvhNodes.ptr(), d_leafNodes.ptr(), d_sortedMortonCodeKeys.ptr(), d_nodeIdx0.ptr(), d_parentIdx.ptr(), d_nMergedCluster.ptr(), nClusters, nInternalNodes, d_test.ptr(), d_spans.ptr(), d_spans2.ptr(), d_atomicCnt.ptr(), d_debugAabb.ptr(), d_debugArea.ptr()});
-		m_timer.measure(TimerCodes::BvhBuildTime, [&]() { hplocKernel.launch(nInternalNodes, PlocBlockSize); });
+		hplocKernel.setArgs({ d_bvhNodes.ptr(), d_leafNodes.ptr(), d_sortedMortonCodeKeys.ptr(), d_nodeIdx0.ptr(), d_parentIdx.ptr(), d_nMergedCluster.ptr(), nClusters, nInternalNodes});
+		m_timer.measure(TimerCodes::BvhBuildTime, [&]() { hplocKernel.launch(nInternalNodes, HPlocBlockSize); });
 	}
 
-	const auto extt = d_sceneExtents.getData();
-	const auto ttt = d_test.getData();
-	const auto txt = d_spans.getData();
-	const auto txt2 = d_spans2.getData();
-	const auto tmt = d_nodeIdx0.getData();
-	const auto xyz = d_nMergedCluster.getData()[0];
-	const auto atomi = d_atomicCnt.getData()[0];
-	const auto dAabb = d_debugAabb.getData();
-	const auto debugArea = d_debugArea.getData();
 	const auto h_bvhNodes = d_bvhNodes.getData();
 	const auto h_leafNodes = d_leafNodes.getData();
 	assert(Utility::checkPlocBvh2Correctness(h_bvhNodes.data(), h_leafNodes.data(), m_rootNodeIdx, nLeafNodes, nInternalNodes) == true);

@@ -590,7 +590,8 @@ DEVICE INLINE float atomicMaxFloat(float* addr, float value)
 		u32 m_nPrimtives;
 	};
 
-	constexpr int PlocBlockSize = 32;
+	constexpr int PlocBlockSize = 1024;
+	constexpr int HPlocBlockSize = 32;
 	constexpr int PlocRadius = 8;
 	constexpr int ReductionBlockSize = 256;
 	constexpr u32 MaxBatchedBlockSize = 32;
