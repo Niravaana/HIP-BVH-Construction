@@ -1,6 +1,7 @@
 # Steps to Build and Run
-1. Download folders dependencies and tools from [dependencies](https://qualcomm-my.sharepoint.com/:f:/p/parikulk_qti/EpeiAY5KEDdMk3LiwU9Ii9gBObTuLXLIX-VV43VhHJBYUQ?e=CPUZlY). If you cant access the link you can download dependencies from location \\\snowcone\umd\dx12\share\dwodniok\
-2. put then in the working directory along side src directory.
+
+1. git clone the repo
+2. git submodule update --init --recursive 
 3. Run .\tools\premake5\win\premake5.exe vs2022
 4. Build directory will be created which will have the solution file.
 
