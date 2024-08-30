@@ -68,20 +68,17 @@ bool Utility::checkPlocBvh2Correctness(const Bvh2Node* bvhNodes, const PrimRef* 
 		stack[top++] = INVALID_NODE_IDX;
 		uint32_t nodeIdx = rootIdx;
 
-		while (top != 0)
+		while (nodeIdx != INVALID_NODE_IDX)
 		{
-			if (nodeIdx != INVALID_NODE_IDX)
+			if (nodeIdx >= nInternalNodes)
 			{
-				if (nodeIdx >= nInternalNodes)
-				{
-					primIdxs.push_back(leafNodes[nodeIdx - nInternalNodes].m_primIdx);
-				}
-				else
-				{
-					Bvh2Node node = bvhNodes[nodeIdx];
-					stack[top++] = node.m_leftChildIdx;
-					stack[top++] = node.m_rightChildIdx;
-				}
+				primIdxs.push_back(leafNodes[nodeIdx - nInternalNodes].m_primIdx);
+			}
+			else
+			{
+				Bvh2Node node = bvhNodes[nodeIdx];
+				stack[top++] = node.m_leftChildIdx;
+				stack[top++] = node.m_rightChildIdx;
 			}
 			nodeIdx = stack[--top];
 		}

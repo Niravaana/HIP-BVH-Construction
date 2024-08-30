@@ -113,9 +113,8 @@ void SinglePassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 			m_timer.measure(TimerCodes::BvhBuildTime, [&]() { initBvhNodesKernel.launch(nLeafNodes); });
 		}
 
-					Oro::GpuMemory<uint2> d_spans(nLeafNodes); d_spans.reset();
 		{
-
+			Oro::GpuMemory<uint2> d_spans(nLeafNodes); d_spans.reset();
 			Oro::GpuMemory<int> d_bvhNodeCounter(nLeafNodes); d_bvhNodeCounter.reset();
 
 			Kernel bvhBuildAndFitKernel;
@@ -131,7 +130,6 @@ void SinglePassLbvh::build(Context& context, std::vector<Triangle>& primitives)
 			m_timer.measure(TimerCodes::BvhBuildTime, [&]() { bvhBuildAndFitKernel.launch(nLeafNodes); });
 			m_rootNodeIdx = d_bvhNodeCounter.getData()[nLeafNodes - 1];
 		}
-		const auto tt = d_spans.getData();
 		const auto h_bvhNodes = d_bvhNodes.getData();
 #if _DEBUG
 		assert(Utility::checkLbvhRootAabb(h_bvhNodes.data(), m_rootNodeIdx, nLeafNodes, nInternalNodes) == true);
