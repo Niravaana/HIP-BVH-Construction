@@ -126,7 +126,7 @@ Leaf Node Visits
 
 # Future Ideas to try 
 
-**Improve ray coherency based on the predicted material intersection 
+**Improve ray coherency based on the predicted material intersection**
 
 	we have ray Hash -> material map from previous frame 
 	Ray gen shader generays ray 
@@ -141,7 +141,7 @@ Assuming the new ray will hit same material we sort rays so that rays going to s
 This will increase occupany as theoretically all rays that might intersect opaque material will exit so if they are together most probably the entire warp will be free.
 Where as if half rays intersected opaque material and half intersected anyHit then that would affect occupany as half threads continue execution for anyhit.
 
-**Reduce number of node tests for a ray by predicting if the ray will hit anyhit and using Hash based ray path prediction
+**Reduce number of node tests for a ray by predicting if the ray will hit anyhit and using Hash based ray path prediction**
 
 similarly to reduce number of node intersections for AnyHit case 
 We will have ray flags from above sorting phase that tells us if potentially this ray will hit transparent material.
@@ -180,7 +180,7 @@ If we fail to get valid hash entry we just continue traversal.
 If we get a valid entry from the hash though ray did not intersect then we clear the hash entry and put the ray back in ray pool.
 If we get a valid entry and we get valid intersection the we just report the valid anyhit intersection without any further traversal.
 
-** Directions on traversal Investigation 
+**Directions on traversal Investigation**
 
 Find out the occupancy of traversal for different ray tracing workloads?
 For the workloads where occupancy is low  we need certain investigations 
