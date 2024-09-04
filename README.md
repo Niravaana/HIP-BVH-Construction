@@ -179,3 +179,28 @@ This way we know if the ray is probably hit anyHit material surface then we will
 If we fail to get valid hash entry we just continue traversal.
 If we get a valid entry from the hash though ray did not intersect then we clear the hash entry and put the ray back in ray pool.
 If we get a valid entry and we get valid intersection the we just report the valid anyhit intersection without any further traversal.
+
+** Directions on traversal Investigation 
+
+Find out the occupancy of traversal for different ray tracing workloads?
+For the workloads where occupancy is low  we need certain investigations 
+	what is the reason for occupancy limiting? 
+		thread divergence ? can material sort solution help ? 
+	can we do persistent threads based speculative while while ? does it improve occupancy ? 
+	Is it because of the vector register file size limits ? the workload is demanding ? Can we increase size of reg file ? 
+
+Storing nodes in DFS is it already done ? 
+
+What is the depth level of BVH we build for complex scenes ? 
+   If we have limited ray-box or ray-ray triangle intersection/s we need some investigations
+   should we move to Bvh4 instead of BVH8 ? (though this will put some pressure on the memory are we able to handle it or we become memory bound ? 
+   should we investigate Ray Path Prediction to reduce number of node tests
+
+For this we might need to know numer of opaque and transparent triangles in the scene.
+Number of anyhit shader calls?
+Get scenes with higher number of transparent materials and test occupany on those scenes? 
+Can the SER sort on custom keys like material hash ? If we we can do the hashing faster? 
+
+Check out : http://robbinmarcus.blogspot.com/2015/12/real-time-raytracing-part-31.html
+Check out : https://raytracey.blogspot.com/2016/09/gpu-path-tracing-tutorial-4-optimised.html
+   
