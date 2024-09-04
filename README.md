@@ -126,18 +126,22 @@ Leaf Node Visits
 
 # Future Ideas to try 
 
-we have ray Hash -> material map from previous frame 
-Ray gen shader generays ray 
-for each new ray 
-   calculate hash 
-   query hash table 
-   get type of material from previous frame 
-   and sort rays based on that material id 
+**Improve ray coherency based on the predicted material intersection 
+
+	we have ray Hash -> material map from previous frame 
+	Ray gen shader generays ray 
+	for each new ray 
+   	calculate hash 
+   	query hash table 
+   	get type of material from previous frame 
+   	and sort rays based on that material id 
    
 So based on new rays we try to find similar rays from previous frame and what material they intersected.
 Assuming the new ray will hit same material we sort rays so that rays going to same material is grouped together.
 This will increase occupany as theoretically all rays that might intersect opaque material will exit so if they are together most probably the entire warp will be free.
 Where as if half rays intersected opaque material and half intersected anyHit then that would affect occupany as half threads continue execution for anyhit.
+
+**Reduce number of node tests for a ray by predicting if the ray will hit anyhit and using Hash based ray path prediction
 
 similarly to reduce number of node intersections for AnyHit case 
 We will have ray flags from above sorting phase that tells us if potentially this ray will hit transparent material.
