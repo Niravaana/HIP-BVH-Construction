@@ -124,3 +124,54 @@ Leaf Node Visits
 
 **Note** : we are still calculating cost on Bvh4 tree after Bvh8 collapse the cost is expected to be reduced by ~half.
 
+# Future Ideas to try 
+
+we have ray Hash -> material map from previous frame 
+Ray gen shader generays ray 
+for each new ray 
+   calculate hash 
+   query hash table 
+   get type of material from previous frame 
+   and sort rays based on that material id 
+   
+So based on new rays we try to find similar rays from previous frame and what material they intersected.
+Assuming the new ray will hit same material we sort rays so that rays going to same material is grouped together.
+This will increase occupany as theoretically all rays that might intersect opaque material will exit so if they are together most probably the entire warp will be free.
+Where as if half rays intersected opaque material and half intersected anyHit then that would affect occupany as half threads continue execution for anyhit.
+
+similarly to reduce number of node intersections for AnyHit case 
+We will have ray flags from above sorting phase that tells us if potentially this ray will hit transparent material.
+Now during traversal 
+
+
+    while(true)
+    {
+      if all rays are processed : return;
+  
+      fetch a ray;
+
+      check ray flag;
+  
+       if probable transparent hit :
+	       calculate the hash for the ray from NodeHash -> a;
+          if we did not get a hit :
+		        continue normal traversal
+		        if we hit the leaf node :
+		           calculate hash for ray and store nodehash -> nodeAddr
+		           update material Hash too
+	           else we got a hit in hash map:
+		           test leaf node for intersection 
+		           if we got intersection 
+			           report valid and stop traversal
+			           store materialHash[ray Hash] = anyhit material
+		           else 
+			           remove hash entry for this ray 
+			           put ray back in to ray pool ( this is false positive )
+              
+     }
+
+
+This way we know if the ray is probably hit anyHit material surface then we will just query node hash and try to get leaf node addr directly.
+If we fail to get valid hash entry we just continue traversal.
+If we get a valid entry from the hash though ray did not intersect then we clear the hash entry and put the ray back in ray pool.
+If we get a valid entry and we get valid intersection the we just report the valid anyhit intersection without any further traversal.
