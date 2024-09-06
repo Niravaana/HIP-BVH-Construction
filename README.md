@@ -202,8 +202,14 @@ Get scenes with higher number of transparent materials and test occupany on thos
 Can the SER sort on custom keys like material hash ? If we we can do the hashing faster? 
 
 **Rebuild Refit ?**
+
 What is the point when we decide its time for rebuild ? Keep the current cost at time of build. May be every refit also keep current cost after refit.
 Next time when we come for refit if the cost delta is getting high time to rebuild.
+
+**investigative directly wide BVH build method**
+
+Currently all methods build binary bvh and then we convert it to wide bvh.
+The cost of widening is substantially high. Is there any way we can just build wide bvh directly ?
 
 Check out : http://robbinmarcus.blogspot.com/2015/12/real-time-raytracing-part-31.html
 Check out : https://raytracey.blogspot.com/2016/09/gpu-path-tracing-tutorial-4-optimised.html
