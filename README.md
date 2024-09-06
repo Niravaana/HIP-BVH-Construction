@@ -189,7 +189,7 @@ For the workloads where occupancy is low  we need certain investigations
 	can we do persistent threads based speculative while while ? does it improve occupancy ? 
 	Is it because of the vector register file size limits ? the workload is demanding ? Can we increase size of reg file ? 
 
-Storing nodes in DFS is it already done ? 
+**Storing nodes in DFS is it already done ?** 
 
 What is the depth level of BVH we build for complex scenes ? 
    If we have limited ray-box or ray-ray triangle intersection/s we need some investigations
@@ -200,6 +200,10 @@ For this we might need to know numer of opaque and transparent triangles in the 
 Number of anyhit shader calls?
 Get scenes with higher number of transparent materials and test occupany on those scenes? 
 Can the SER sort on custom keys like material hash ? If we we can do the hashing faster? 
+
+**Rebuild Refit ?**
+What is the point when we decide its time for rebuild ? Keep the current cost at time of build. May be every refit also keep current cost after refit.
+Next time when we come for refit if the cost delta is getting high time to rebuild.
 
 Check out : http://robbinmarcus.blogspot.com/2015/12/real-time-raytracing-part-31.html
 Check out : https://raytracey.blogspot.com/2016/09/gpu-path-tracing-tutorial-4-optimised.html
