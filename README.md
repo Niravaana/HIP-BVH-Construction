@@ -41,54 +41,173 @@ Leaf Node Visits
 ![colorMap](https://github.com/user-attachments/assets/f5234849-bd3d-4af3-aba7-c054f14bed08)
 
 
-# Performance Numbers With LBVH
+# Performance Numbers With Two Pass LBVH
 
 **Timings for Bunny Box(150K triangles) on RX6800 AMD**
 
 -----------------------Perf Times----------------------------
 
-CalculateCentroidExtentsTime :0.0213ms
+CalculateCentroidExtentsTime :0.247701ms
 
-CalculateMortonCodesTime :0.0032ms
+CalculateMortonCodesTime :0.037101ms
 
-SortingTime : 0.247ms
+SortingTime : 0.1635ms
 
-BvhBuildTime : 0.3238ms
+BvhBuildTime : 0.693201ms
 
-Total Time : 0.5953ms
+CollapseTime : 2.9558ms
 
------------------------------------------------------------
+Bvh Cost : 22.6397
 
-**Timings for Sponza(260K triangles) on RX6800 AMD**
-
------------------------Perf Times----------------------------
-
-CalculateCentroidExtentsTime :0.023ms
-
-CalculateMortonCodesTime :0.0241ms
-
-SortingTime : 0.3357ms
-
-BvhBuildTime : 0.3868ms
-
-Total Time : 0.7696ms
-
--------------------------------------------------------------
-
-Time with Single Pass LBVH 
-
-CalculateCentroidExtentsTime :0.1001ms
-
-CalculateMortonCodesTime :0.0839ms
-
-SortingTime : 0.9424ms
-
-BvhBuildTime : 1.035ms
-
-Total Time : 2.1614ms
+Total Time : 1.1415ms
 
 ------------------------------------------------------------
 
-**Todo :** Still need to explore collapsing for LBVH and see its impact on performance, take timings with Bistro like scene and write blog post explaining the method.
+**Timings for Sponza(260K triangles) on RX6800 AMD**
 
+-------------------------Perf Times------------------------
+
+CalculateCentroidExtentsTime :0.223ms
+
+CalculateMortonCodesTime :0.082599ms
+
+SortingTime : 0.249ms
+
+BvhBuildTime : 0.929ms
+
+CollapseTime : 3.6383ms
+
+Bvh Cost : 59.4779
+
+Total Time : 1.4836ms
+
+---------------------------------------------------------------
+
+# Performance Numbers with Single Pass LBVH 
+
+**Timings for Bunny Box(150K triangles) on RX6800 AMD**
+
+------------------------Perf Times------------------------------
+
+CalculateCentroidExtentsTime :0.2209ms
+
+CalculateMortonCodesTime :0.0465ms
+
+SortingTime : 0.173501ms
+
+BvhBuildTime : 0.4865ms
+
+CollapseTime : 3.3596ms
+
+Bvh Cost : 22.6397
+
+Total Time : 0.927401ms
+
+------------------------------------------------------------
+
+**Timings for Sponza(260K triangles) on RX6800 AMD**
+
+-----------------------Perf Times---------------------------
+
+CalculateCentroidExtentsTime :0.224899ms
+
+CalculateMortonCodesTime :0.0853ms
+
+SortingTime : 0.2496ms
+
+BvhBuildTime : 0.428799ms
+
+CollapseTime : 3.316ms
+
+Bvh Cost : 59.4779
+
+Total Time : 0.988598ms
+
+------------------------------------------------------------
+
+# Performance Numbers with HPLOC 
+
+**Timings for Bunny Box(150K triangles) on RX6800 AMD**
+
+-----------------------Perf Times----------------------------
+
+CalculateCentroidExtentsTime :0.2593ms
+
+CalculateMortonCodesTime :0.070599ms
+
+SortingTime : 0.177599ms
+
+BvhBuildTime : 0.5147ms
+
+CollapseTime : 3.3104ms
+
+Bvh Cost : 21.9676
+
+Total Time : 1.0222ms
+
+------------------------------------------------------------
+
+**Timings for Sponza(260K triangles) on RX6800 AMD**
+
+-----------------------Perf Times---------------------------
+
+CalculateCentroidExtentsTime :0.279299ms
+
+CalculateMortonCodesTime :0.204699ms
+
+SortingTime : 0.2535ms
+
+BvhBuildTime : 0.6133ms
+
+CollapseTime : 4.0426ms
+
+Bvh Cost : 48.2362
+
+Total Time : 1.3508ms
+
+------------------------------------------------------------
+
+# Performance Numbers with PLOC++ 
+
+**Timings for Bunny Box(150K triangles) on RX6800 AMD**
+
+-----------------------Perf Times---------------------------
+
+CalculateCentroidExtentsTime :0.1981ms
+
+CalculateMortonCodesTime :0.0776ms
+
+SortingTime : 0.1944ms
+
+BvhBuildTime : 0.688ms
+
+CollapseTime : 3.2174ms
+
+Bvh Cost : 21.9248
+
+Total Time : 1.1581ms
+
+------------------------------------------------------------
+
+**Timings for Sponza(260K triangles) on RX6800 AMD**
+
+-----------------------Perf Times---------------------------
+
+CalculateCentroidExtentsTime :0.2975ms
+
+CalculateMortonCodesTime :0.1004ms
+
+SortingTime : 0.2598ms
+
+BvhBuildTime : 0.983297ms
+
+CollapseTime : 4.3278ms
+
+Bvh Cost : 48.842
+
+Total Time : 1.641ms
+
+------------------------------------------------------------
+
+Note : Timings are on AMD 6800W Pro
 
