@@ -15,7 +15,12 @@
 #include "Hploc.h"
 #include "BatchedBuilder.h"
 
+//#define USE_TWOPASS_LBVH 1
+//#define USE_SINGLEPASS_LBVH 1
+//#define USE_BATCHED_BUILDER 1
+//#define USE_PLOC 1
 #define USE_HPLOC 1 
+
 using namespace BvhConstruction;
 
 int main(int argc, char* argv[])
