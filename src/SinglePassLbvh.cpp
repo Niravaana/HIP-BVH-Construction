@@ -9,7 +9,7 @@
 
 
 using namespace BvhConstruction;
-
+#define WHILEWHILE 1
 #define IFIF 1
 #define USE_GPU_WIDE_COLLAPSE 1
 //#define USE_PRIM_SPLITTING 1
@@ -284,7 +284,7 @@ void SinglePassLbvh::traverseBvh(Context& context)
 				traversalKernel,
 				context.m_orochiDevice,
 				"../src/TraversalKernel.h",
-				"BvhTraversalWhile",
+				"BvhTraversalSpeculativeWhile",
 				std::nullopt);
 
 			traversalKernel.setArgs({ d_rayBuffer.ptr(), d_triangleBuff.ptr(), d_bvhNodes.ptr(), d_transformations.ptr(), d_colorBuffer.ptr(), m_rootNodeIdx, width, height, m_nInternalNodes });

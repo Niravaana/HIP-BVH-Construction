@@ -15,11 +15,11 @@
 #include "Hploc.h"
 #include "BatchedBuilder.h"
 
-//#define USE_TWOPASS_LBVH 1
+#define USE_TWOPASS_LBVH 1
 //#define USE_SINGLEPASS_LBVH 1
 //#define USE_BATCHED_BUILDER 1
 //#define USE_PLOC 1
-#define USE_HPLOC 1 
+//#define USE_HPLOC 1 
 
 using namespace BvhConstruction;
 
@@ -50,7 +50,7 @@ int main(int argc, char* argv[])
 #endif
 
 		std::vector<Triangle> triangles;
-		MeshLoader::loadScene("../src/meshes/bunny/bunny.obj", "../src/meshes/bunny/", triangles);
+		MeshLoader::loadScene("../src/meshes/sponza/sponza.obj", "../src/meshes/sponza/", triangles);
 	
 #if defined USE_SINGLEPASS_LBVH
 		SinglePassLbvh bvh;

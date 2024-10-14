@@ -9,8 +9,8 @@
 
 using namespace BvhConstruction;
 
-//#define WHILEWHILE 1
-#define IFIF 1
+#define WHILEWHILE 1
+//#define IFIF 1
 //#define USE_PRIM_SPLITTING 1
 #define USE_GPU_WIDE_COLLAPSE 1
 
@@ -216,8 +216,8 @@ void TwoPassLbvh::traverseBvh(Context& context)
 	OrochiUtils::copyHtoD(d_cam.ptr(), &cam, 1);
 
 
-	u32 width = 512;
-	u32 height = 512;
+	u32 width = 1024;
+	u32 height = 1024;
 	Oro::GpuMemory<Ray> d_rayBuffer(width * height); d_rayBuffer.reset();
 	Oro::GpuMemory<u32> d_rayCounterBuffer(width * height); d_rayCounterBuffer.reset();
 	//generate rays
@@ -271,7 +271,7 @@ void TwoPassLbvh::traverseBvh(Context& context)
 	Utility::generateTraversalHeatMap(rayCounter, width, height);
 #endif 	
 #elif defined WHILEWHILE
-
+	OrochiUtils::waitForCompletion();
 	//Traversal kernel
 	{
 		const u32 blockSizeX = 8;
@@ -290,7 +290,7 @@ void TwoPassLbvh::traverseBvh(Context& context)
 		traversalKernel.setArgs({ d_rayBuffer.ptr(), d_triangleBuff.ptr(), d_bvhNodes.ptr(), d_transformations.ptr(), d_colorBuffer.ptr(), m_rootNodeIdx, width, height, m_nInternalNodes });
 		m_timer.measure(TimerCodes::TraversalTime, [&]() { traversalKernel.launch(gridSizeX, gridSizeY, 1, blockSizeX, blockSizeY, 1); });
 	}
-
+	OrochiUtils::waitForCompletion();
 #endif
 
 	stbi_write_png("test.png", width, height, 4, d_colorBuffer.getData().data(), width * 4);
