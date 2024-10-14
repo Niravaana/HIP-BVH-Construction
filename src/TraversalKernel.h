@@ -364,6 +364,7 @@ extern "C" __global__ void BvhTraversalSpeculativeWhile(const  Ray* __restrict__
 	transformedRay.m_origin = invTransform(ray.m_origin, tr[0].m_scale, tr[0].m_quat, tr[0].m_translation);
 	transformedRay.m_direction = invTransform(ray.m_direction, tr[0].m_scale, tr[0].m_quat, { 0.0f,0.0f,0.0f });
 	float3 invRayDir = 1.0f / transformedRay.m_direction;
+	u32 leafNodeIdx = INVALID_NODE_IDX;
 
 	while (nodeIdx != INVALID_NODE_IDX)
 	{
@@ -399,9 +400,11 @@ extern "C" __global__ void BvhTraversalSpeculativeWhile(const  Ray* __restrict__
 				nodeIdx = stack[--top];
 			}
 
-			if (nodeIdx != INVALID_NODE_IDX && nodeIdx >= nInternalNodes)
+			if (nodeIdx != INVALID_NODE_IDX && nodeIdx >= nInternalNodes && leafNodeIdx == INVALID_NODE_IDX)
 			{
 				searchingLeaf = false;
+				leafNodeIdx = nodeIdx;
+				nodeIdx = stack[--top];
 			}
 
 			//All lane found leaf
@@ -409,12 +412,11 @@ extern "C" __global__ void BvhTraversalSpeculativeWhile(const  Ray* __restrict__
 		}
 
 
-		while (nodeIdx >= nInternalNodes && nodeIdx != INVALID_NODE_IDX)
+		while (leafNodeIdx != INVALID_NODE_IDX)
 		{
-			const Bvh2Node& node = bvhNodes[nodeIdx];
-
-			if (nodeIdx >= nInternalNodes)
+			if (leafNodeIdx >= nInternalNodes)
 			{
+				const Bvh2Node& node = bvhNodes[leafNodeIdx];
 				const Triangle& triangle = primitives[node.m_leftChildIdx];
 				float3 tV0 = transform(triangle.v1, tr[0].m_scale, tr[0].m_quat, tr[0].m_translation);
 				float3 tV1 = transform(triangle.v2, tr[0].m_scale, tr[0].m_quat, tr[0].m_translation);
@@ -430,7 +432,12 @@ extern "C" __global__ void BvhTraversalSpeculativeWhile(const  Ray* __restrict__
 				}
 			}
 
-			nodeIdx = stack[--top];
+			leafNodeIdx = INVALID_NODE_IDX;
+			if (nodeIdx != INVALID_NODE_IDX &&  nodeIdx >= nInternalNodes)
+			{
+				leafNodeIdx = nodeIdx;
+				nodeIdx = stack[--top];
+			}
 		}
 	}
 

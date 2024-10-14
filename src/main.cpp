@@ -50,7 +50,7 @@ int main(int argc, char* argv[])
 #endif
 
 		std::vector<Triangle> triangles;
-		MeshLoader::loadScene("../src/meshes/sponza/sponza.obj", "../src/meshes/sponza/", triangles);
+		MeshLoader::loadScene("../src/meshes/cornellbox/cornellbox.obj", "../src/meshes/cornellbox/", triangles);
 	
 #if defined USE_SINGLEPASS_LBVH
 		SinglePassLbvh bvh;
