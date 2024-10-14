@@ -23,6 +23,7 @@ This repo is implementation of different GPU BVH build methods and optimizations
    Basic idea is to split the AABB of the primitive along the maximum extent midpoint. The problem is leaf node explosion and the criteria to decide to split is user defined parameter. It is hard to find a generic value for this heuristic. Though, I dont see any performance boost in traversal at least for sponza.(Hard to verify my implementation as of now).
 10. [If-If/while-while traversal shaders](https://github.com/Niravaana/HIP-BVH-Construction/blob/main/src/TraversalKernel.h) - Based on the research paper [Understanding the Efficiency of Ray Traversal on GPUs – Kepler and Fermi Addendum](https://research.nvidia.com/sites/default/files/pubs/2012-06_Understanding-the-Efficiency/nvr-2012-02.pdf)
 11. [Restart Trail Traversal](https://github.com/Niravaana/HIP-BVH-Construction/blob/afd326510b0107387fb8ae2c3d70e1b016224bec/src/TraversalKernel.h#L28) : Based on the research [paper](https://research.nvidia.com/sites/default/files/pubs/2010-06_Restart-Trail-for/laine2010hpg_paper.pdf).
+12. [Speculative while/while](https://github.com/Niravaana/HIP-BVH-Construction/blob/e973d9e1ee6fda3e1704f22fe9c540a92bba040d/src/TraversalKernel.h#L337)
 
 Note : You might find function duplication in the kernel files. I did not get time to refactor this much though it helps to understand code as we have all code in one file.
 
